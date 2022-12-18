@@ -1,0 +1,4 @@
+Core features:
+1. create a task
+2. integrate with calendar
+3. find time slot for task
