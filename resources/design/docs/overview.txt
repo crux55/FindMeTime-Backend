@@ -1,4 +1,11 @@
 Core features:
 1. create a task
+1.5. View a task
+1.6 create task card
 2. integrate with calendar
+2.1. view events
+2.2 add events
 3. find time slot for task
+3.1 find blocked time (sleep plus general)
+3.2 find remaining time
+3.3 assign time slots

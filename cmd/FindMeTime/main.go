@@ -17,9 +17,11 @@ import (
 )
 
 type CreateTask struct {
-	title       string
-	description string
-	duration    string
+	TaskId      string
+	Title       string
+	Description string
+	Duration    string
+	CreatedOn   string
 }
 
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -36,29 +38,59 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	fmt.Print("Before conn")
+	fmt.Print(t)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Print("After conn")
-	_, err = db.Query("INSERT INTO Tasks (task_id, title, description, duration, created_on) VALUES ($1, $2, $3, $4, $5);", uuid.New(), t.title, t.description, t.duration, time.Now())
+	_, err = db.Query("INSERT INTO Tasks (task_id, title, description, duration, created_on) VALUES ($1, $2, $3, $4, $5);", uuid.New(), t.Title, t.Description, t.Duration, time.Now())
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Fprintf(w, "Task: %+v", t)
 }
 
+func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Print(".")
+	var tasks []CreateTask
+
+	userName := "tasker"
+	host := "192.168.1.33"
+
+	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rows, err := db.Query("select * from Tasks")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var t CreateTask
+		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
+		if err != nil {
+			fmt.Print("Scan: %v", err)
+		}
+		tasks = append(tasks, t)
+	}
+	json.NewEncoder(w).Encode(tasks)
+}
+
 func main() {
 	router := httprouter.New()
 
 	router.POST("/api/v1/task/create", CreateTaskHandler)
+	router.GET("/api/v1/task/all", GetTasksHandler)
 	handler := cors.Default().Handler(router)
 	http.ListenAndServe(":8080", handler)
 }
 
-func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-}
+// func enableCors(w *http.ResponseWriter) {
+// 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+// 	fmt.Print(".")
+// }
 
 /*
 \c findmetime;
