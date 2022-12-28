@@ -20,12 +20,49 @@ type CreateTask struct {
 	TaskId      string
 	Title       string
 	Description string
-	Duration    string
+	Duration    int
 	CreatedOn   string
 }
 
+type ProposedTask struct {
+	*CreateTask
+	StartTime int
+}
+
+type Goal struct {
+	TaskId      string
+	Title       string
+	Description string
+	Duration    int
+	CreatedOn   string
+}
+
+type ProposedGoal struct {
+	*Goal
+	StartTime int
+}
+
+type FindTimeRequest struct {
+	Tasks []CreateTask
+	Goals []Goal
+}
+
+type FindTimeResponse struct {
+	ProposedTasks []ProposedTask
+	ProposedGoals []ProposedGoal
+	Week          Week
+}
+
+type Week struct {
+	Days []Day
+}
+
+type Day struct {
+	Date        string
+	SortedItems []ProposedTask
+}
+
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Print(".")
 	var t CreateTask
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
@@ -34,7 +71,7 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	userName := "tasker"
-	host := "192.168.1.33"
+	host := "192.168.1.32"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	fmt.Print("Before conn")
@@ -56,7 +93,7 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	var tasks []CreateTask
 
 	userName := "tasker"
-	host := "192.168.1.33"
+	host := "192.168.1.32"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -78,11 +115,24 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	json.NewEncoder(w).Encode(tasks)
 }
 
+func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var findTimeRequest FindTimeRequest
+	err := json.NewDecoder(r.Body).Decode(&findTimeRequest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	response := findTime(findTimeRequest)
+
+	json.NewEncoder(w).Encode(response)
+}
+
 func main() {
 	router := httprouter.New()
 
 	router.POST("/api/v1/task/create", CreateTaskHandler)
 	router.GET("/api/v1/task/all", GetTasksHandler)
+	router.POST("/api/v1/findtime", FindTime)
 	handler := cors.Default().Handler(router)
 	http.ListenAndServe(":8080", handler)
 }
