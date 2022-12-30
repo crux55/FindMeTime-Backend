@@ -71,7 +71,7 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	userName := "tasker"
-	host := "192.168.1.32"
+	host := "192.168.1.33"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	fmt.Print("Before conn")
@@ -93,7 +93,7 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	var tasks []CreateTask
 
 	userName := "tasker"
-	host := "192.168.1.32"
+	host := "192.168.1.33"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -122,7 +122,7 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	response := findTime(findTimeRequest)
+	response := FindTimeWorker(findTimeRequest)
 
 	json.NewEncoder(w).Encode(response)
 }
@@ -149,7 +149,7 @@ CREATE TABLE tasks (
         task_id  VARCHAR ( 50 ) PRIMARY KEY,
         title VARCHAR ( 50 ) NOT NULL,
         description VARCHAR ( 50 ) NOT NULL,
-        duration VARCHAR ( 255 ) NOT NULL,
+        duration INT NOT NULL,
         created_on TIMESTAMP NOT NULL
 ); GRANT ALL ON TABLE tasks TO tasker;
 */

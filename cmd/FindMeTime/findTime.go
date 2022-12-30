@@ -1,8 +1,10 @@
+package main
+
 import (
 	"math/rand"
 )
 
-func findTime(findTimeRequest FindTimeRequest) *FindTimeResponse {
+func FindTimeWorker(findTimeRequest FindTimeRequest) *FindTimeResponse {
 	hoursInAday := [24]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
 	blockers := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 23}
 
