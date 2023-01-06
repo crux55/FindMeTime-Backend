@@ -13,6 +13,7 @@ import (
 	"github.com/rs/cors" // only needed while CORS is in play
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 )
 
@@ -42,8 +43,12 @@ type ProposedGoal struct {
 	StartTime int
 }
 
+type FindTimeRequestTask struct {
+	TaskId []string
+}
+
 type FindTimeRequest struct {
-	Tasks []CreateTask
+	Tasks []string
 	Goals []Goal
 }
 
@@ -54,11 +59,10 @@ type FindTimeResponse struct {
 }
 
 type Week struct {
-	Days []Day
+	Days map[string]Day
 }
 
 type Day struct {
-	Date        string
 	SortedItems []ProposedTask
 }
 
@@ -116,13 +120,45 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 }
 
 func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Print("in find time")
 	var findTimeRequest FindTimeRequest
 	err := json.NewDecoder(r.Body).Decode(&findTimeRequest)
 	if err != nil {
+		fmt.Print(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	response := FindTimeWorker(findTimeRequest)
+
+	var taskIdList []string
+
+	for _, v := range findTimeRequest.Tasks {
+		taskIdList = append(taskIdList, v)
+	}
+
+	var tasks []CreateTask
+
+	userName := "tasker"
+	host := "192.168.1.33"
+
+	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rows, err := db.Query("select * from Tasks where task_id = Any($1)", pq.Array(taskIdList))
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var t CreateTask
+		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
+		if err != nil {
+			fmt.Print("Scan: %v", err)
+		}
+		tasks = append(tasks, t)
+	}
+
+	response := FindTimeWorker(tasks, nil)
 
 	json.NewEncoder(w).Encode(response)
 }
@@ -134,6 +170,7 @@ func main() {
 	router.GET("/api/v1/task/all", GetTasksHandler)
 	router.POST("/api/v1/findtime", FindTime)
 	handler := cors.Default().Handler(router)
+	fmt.Print("Started....")
 	http.ListenAndServe(":8080", handler)
 }
 
