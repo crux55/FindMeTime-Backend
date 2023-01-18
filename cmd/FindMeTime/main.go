@@ -27,15 +27,12 @@ type CreateTask struct {
 
 type ProposedTask struct {
 	*CreateTask
-	StartTime int
+	StartTime string
 }
 
 type Goal struct {
-	TaskId      string
-	Title       string
-	Description string
-	Duration    int
-	CreatedOn   string
+	*CreateTask
+	Frequency int
 }
 
 type ProposedGoal struct {
@@ -49,10 +46,12 @@ type FindTimeRequestTask struct {
 
 type FindTimeRequest struct {
 	Tasks []string
-	Goals []Goal
+	Goals []string
 }
 
 type FindTimeResponse struct {
+	StartDate     string
+	EndDate       string
 	ProposedTasks []ProposedTask
 	ProposedGoals []ProposedGoal
 	Week          Week
@@ -75,7 +74,7 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	userName := "tasker"
-	host := "192.168.1.33"
+	host := "192.168.1.32"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	fmt.Print("Before conn")
@@ -92,12 +91,38 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	fmt.Fprintf(w, "Task: %+v", t)
 }
 
+func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var g Goal
+	err := json.NewDecoder(r.Body).Decode(&g)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	userName := "tasker"
+	host := "192.168.1.32"
+
+	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
+	fmt.Print("Before conn")
+	fmt.Print(g)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Print("After conn")
+	_, err = db.Query("INSERT INTO Goals (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5, $6);", uuid.New(), g.Title, g.Description, g.Duration, time.Now(), g.Frequency)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprintf(w, "Task: %+v", g)
+}
+
 func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Print(".")
 	var tasks []CreateTask
 
 	userName := "tasker"
-	host := "192.168.1.33"
+	host := "192.168.1.32"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -116,6 +141,21 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 		}
 		tasks = append(tasks, t)
 	}
+
+	goaldb, err := sql.Open("postgres", connStr)
+	rows, err = goaldb.Query("select task_id, title, description, duration, created_on from Goals")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var t CreateTask
+		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
+		if err != nil {
+			fmt.Print("Scan: %v", err)
+		}
+		tasks = append(tasks, t)
+	}
+
 	json.NewEncoder(w).Encode(tasks)
 }
 
@@ -130,15 +170,20 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	var taskIdList []string
+	var goalIdList []string
 
 	for _, v := range findTimeRequest.Tasks {
 		taskIdList = append(taskIdList, v)
 	}
 
+	for _, v := range findTimeRequest.Goals {
+		goalIdList = append(goalIdList, v)
+	}
+
 	var tasks []CreateTask
 
 	userName := "tasker"
-	host := "192.168.1.33"
+	host := "192.168.1.32"
 
 	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -158,7 +203,24 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		tasks = append(tasks, t)
 	}
 
-	response := FindTimeWorker(tasks, nil)
+	var goals []Goal
+	goaldb, goalerr := sql.Open("postgres", connStr)
+	goalrows, goalerr := goaldb.Query("select * from Goals where task_id = Any($1)", pq.Array(taskIdList))
+	if goalerr != nil {
+		log.Fatal(err)
+	}
+	for goalrows.Next() {
+		var g Goal
+		var t CreateTask
+		err = goalrows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &g.Frequency)
+		if err != nil {
+			fmt.Print("Scan: %v", err)
+		}
+		g.CreateTask = &t
+		goals = append(goals, g)
+	}
+
+	response := FindTimeWorker(tasks, goals)
 
 	json.NewEncoder(w).Encode(response)
 }
@@ -167,6 +229,7 @@ func main() {
 	router := httprouter.New()
 
 	router.POST("/api/v1/task/create", CreateTaskHandler)
+	router.POST("/api/v1/goal/create", CreateGoalHandler)
 	router.GET("/api/v1/task/all", GetTasksHandler)
 	router.POST("/api/v1/findtime", FindTime)
 	handler := cors.Default().Handler(router)
@@ -182,11 +245,24 @@ func main() {
 /*
 \c findmetime;
 drop table tasks;
+drop table goals;
 CREATE TABLE tasks (
         task_id  VARCHAR ( 50 ) PRIMARY KEY,
         title VARCHAR ( 50 ) NOT NULL,
         description VARCHAR ( 50 ) NOT NULL,
         duration INT NOT NULL,
         created_on TIMESTAMP NOT NULL
-); GRANT ALL ON TABLE tasks TO tasker;
+);
+
+CREATE TABLE goals (
+        task_id  VARCHAR ( 50 ) PRIMARY KEY,
+        title VARCHAR ( 50 ) NOT NULL,
+        description VARCHAR ( 50 ) NOT NULL,
+        duration INT NOT NULL,
+        created_on TIMESTAMP NOT NULL,
+		frequency INT NOT NULL
+);
+
+GRANT ALL ON TABLE tasks TO tasker;
+GRANT ALL ON TABLE goals TO tasker;
 */
