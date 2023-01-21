@@ -17,27 +17,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type CreateTask struct {
+type Task struct {
 	TaskId      string
 	Title       string
 	Description string
 	Duration    int
 	CreatedOn   string
+	Frequency   int
 }
 
 type ProposedTask struct {
-	*CreateTask
+	*Task
 	StartTime string
-}
-
-type Goal struct {
-	*CreateTask
-	Frequency int
-}
-
-type ProposedGoal struct {
-	*Goal
-	StartTime int
 }
 
 type FindTimeRequestTask struct {
@@ -46,14 +37,12 @@ type FindTimeRequestTask struct {
 
 type FindTimeRequest struct {
 	Tasks []string
-	Goals []string
 }
 
 type FindTimeResponse struct {
 	StartDate     string
 	EndDate       string
 	ProposedTasks []ProposedTask
-	ProposedGoals []ProposedGoal
 	Week          Week
 }
 
@@ -66,7 +55,7 @@ type Day struct {
 }
 
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	var t CreateTask
+	var t Task
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -84,42 +73,16 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		log.Fatal(err)
 	}
 	fmt.Print("After conn")
-	_, err = db.Query("INSERT INTO Tasks (task_id, title, description, duration, created_on) VALUES ($1, $2, $3, $4, $5);", uuid.New(), t.Title, t.Description, t.Duration, time.Now())
+	_, err = db.Query("INSERT INTO Tasks (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5);", uuid.New(), t.Title, t.Description, t.Duration, time.Now())
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Fprintf(w, "Task: %+v", t)
 }
 
-func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	var g Goal
-	err := json.NewDecoder(r.Body).Decode(&g)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	userName := "tasker"
-	host := "192.168.1.32"
-
-	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
-	fmt.Print("Before conn")
-	fmt.Print(g)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print("After conn")
-	_, err = db.Query("INSERT INTO Goals (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5, $6);", uuid.New(), g.Title, g.Description, g.Duration, time.Now(), g.Frequency)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Fprintf(w, "Task: %+v", g)
-}
-
 func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Print(".")
-	var tasks []CreateTask
+	var tasks []Task
 
 	userName := "tasker"
 	host := "192.168.1.32"
@@ -134,21 +97,7 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 		log.Fatal(err)
 	}
 	for rows.Next() {
-		var t CreateTask
-		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
-		if err != nil {
-			fmt.Print("Scan: %v", err)
-		}
-		tasks = append(tasks, t)
-	}
-
-	goaldb, err := sql.Open("postgres", connStr)
-	rows, err = goaldb.Query("select task_id, title, description, duration, created_on from Goals")
-	if err != nil {
-		log.Fatal(err)
-	}
-	for rows.Next() {
-		var t CreateTask
+		var t Task
 		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
 		if err != nil {
 			fmt.Print("Scan: %v", err)
@@ -180,7 +129,7 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		goalIdList = append(goalIdList, v)
 	}
 
-	var tasks []CreateTask
+	var tasks []Task
 
 	userName := "tasker"
 	host := "192.168.1.32"
@@ -195,32 +144,15 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		log.Fatal(err)
 	}
 	for rows.Next() {
-		var t CreateTask
-		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
+		var t Task
+		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &t.Frequency)
 		if err != nil {
 			fmt.Print("Scan: %v", err)
 		}
 		tasks = append(tasks, t)
 	}
 
-	var goals []Goal
-	goaldb, goalerr := sql.Open("postgres", connStr)
-	goalrows, goalerr := goaldb.Query("select * from Goals where task_id = Any($1)", pq.Array(taskIdList))
-	if goalerr != nil {
-		log.Fatal(err)
-	}
-	for goalrows.Next() {
-		var g Goal
-		var t CreateTask
-		err = goalrows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &g.Frequency)
-		if err != nil {
-			fmt.Print("Scan: %v", err)
-		}
-		g.CreateTask = &t
-		goals = append(goals, g)
-	}
-
-	response := FindTimeWorker(tasks, goals)
+	response := FindTimeWorker(tasks)
 
 	json.NewEncoder(w).Encode(response)
 }
@@ -251,7 +183,8 @@ CREATE TABLE tasks (
         title VARCHAR ( 50 ) NOT NULL,
         description VARCHAR ( 50 ) NOT NULL,
         duration INT NOT NULL,
-        created_on TIMESTAMP NOT NULL
+        created_on TIMESTAMP NOT NULL,
+		frequency INT NOT NULL
 );
 
 CREATE TABLE goals (

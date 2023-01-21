@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-func FindTimeWorker(tasks []CreateTask, goals []Goal) *FindTimeResponse {
+func FindTimeWorker(tasks []Task) *FindTimeResponse {
 	hoursInAday := [24]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
 	blockers := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 23}
 	amountOfDays := 4
 	var timeSlots []int
 	// var requiredTime int
 	var returnerTasks []ProposedTask
-	var returnerGoals []ProposedGoal
+	var returnerGoals []Task
 	returnerWeek := Week{Days: make(map[string]Day)}
 	startDate := nextWeeklyEvent(time.Monday, 0)
 	allAvailableTimes := make(map[int][]int)
@@ -49,26 +49,18 @@ func FindTimeWorker(tasks []CreateTask, goals []Goal) *FindTimeResponse {
 	// 	return nil
 	// }
 
-	for index, _ := range tasks {
-		_, proposedDate, time := getDayIndexDateAndTime(tasks[index].Title, amountOfDays, returnerWeek, &allAvailableTimes)
-		putEventIntoWeek(&tasks[index], proposedDate, time, &returnerWeek)
-		sort.Slice(returnerWeek.Days[proposedDate].SortedItems, func(i, j int) bool {
-			return returnerWeek.Days[proposedDate].SortedItems[i].StartTime < returnerWeek.Days[proposedDate].SortedItems[j].StartTime
-		})
-	}
-
-	for goalIndex, goal := range goals {
-		returnerGoals = append(returnerGoals, ProposedGoal{&goals[goalIndex], 0})
-		for frequencyIndex := 0; frequencyIndex < goal.Frequency; frequencyIndex++ {
-			_, proposedDate, time := getDayIndexDateAndTime(goal.Title, amountOfDays, returnerWeek, &allAvailableTimes)
-			putEventIntoWeek(goals[goalIndex].CreateTask, proposedDate, time, &returnerWeek)
+	for index, task := range tasks {
+		// returnerGoals = append(returnerGoals, ProposedGoal{&goals[goalIndex], 0})
+		for frequencyIndex := 0; frequencyIndex < task.Frequency; frequencyIndex++ {
+			_, proposedDate, time := getDayIndexDateAndTime(task.Title, amountOfDays, returnerWeek, &allAvailableTimes)
+			putEventIntoWeek(&tasks[index], proposedDate, time, &returnerWeek)
 			sort.Slice(returnerWeek.Days[proposedDate].SortedItems, func(i, j int) bool {
 				return returnerWeek.Days[proposedDate].SortedItems[i].StartTime < returnerWeek.Days[proposedDate].SortedItems[j].StartTime
 			})
 		}
 	}
 
-	return &FindTimeResponse{ProposedTasks: returnerTasks, ProposedGoals: returnerGoals, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
+	return &FindTimeResponse{ProposedTasks: returnerTasks, ProposedGoals: nil, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
 }
 
 func nextWeeklyEvent(weekday time.Weekday, mod int) string {
