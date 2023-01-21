@@ -65,6 +65,29 @@ type Day struct {
 	SortedItems []ProposedTask
 }
 
+type Tag struct {
+	/*
+			task_id  VARCHAR ( 50 ) PRIMARY KEY,
+		tag_name VARCHAR(50) NOT NULL,
+		description VARCHAR(50) NOT NULL,
+		owner  INT NOT NULL,
+		mon_start TIMESTAMP NOT NULL,
+		mon_end TIMESTAMP NOT NULL,
+			tue_start TIMESTAMP NOT NULL,
+		tue_end TIMESTAMP NOT NULL,
+			wed_start TIMESTAMP NOT NULL,
+		wed_end TIMESTAMP NOT NULL,
+			thu_start TIMESTAMP NOT NULL,
+		thu_end TIMESTAMP NOT NULL,
+			fri_start TIMESTAMP NOT NULL,
+		fri_end TIMESTAMP NOT NULL,
+			sat_start TIMESTAMP NOT NULL,
+		sat_end TIMESTAMP NOT NULL,
+			sun_start TIMESTAMP NOT NULL,
+		sun_end TIMESTAMP NOT NULL,
+	*/
+}
+
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var t CreateTask
 	err := json.NewDecoder(r.Body).Decode(&t)
@@ -115,6 +138,32 @@ func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		log.Fatal(err)
 	}
 	fmt.Fprintf(w, "Task: %+v", g)
+}
+
+func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	// var g Goal
+	// err := json.NewDecoder(r.Body).Decode(&g)
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusBadRequest)
+	// 	return
+	// }
+
+	// userName := "tasker"
+	// host := "192.168.1.32"
+
+	// connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
+	// fmt.Print("Before conn")
+	// fmt.Print(g)
+	// db, err := sql.Open("postgres", connStr)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Print("After conn")
+	// _, err = db.Query("INSERT INTO Goals (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5, $6);", uuid.New(), g.Title, g.Description, g.Duration, time.Now(), g.Frequency)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// fmt.Fprintf(w, "Task: %+v", g)
 }
 
 func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -263,6 +312,29 @@ CREATE TABLE goals (
 		frequency INT NOT NULL
 );
 
+CREATE TABLE tags (
+	task_id  VARCHAR ( 50 ) PRIMARY KEY,
+	tag_name VARCHAR(50) NOT NULL,
+	description VARCHAR(50) NOT NULL,
+	owner  INT NOT NULL,
+	mon_start TIMESTAMP NOT NULL,
+	mon_end TIMESTAMP NOT NULL,
+		tue_start TIMESTAMP NOT NULL,
+	tue_end TIMESTAMP NOT NULL,
+		wed_start TIMESTAMP NOT NULL,
+	wed_end TIMESTAMP NOT NULL,
+		thu_start TIMESTAMP NOT NULL,
+	thu_end TIMESTAMP NOT NULL,
+		fri_start TIMESTAMP NOT NULL,
+	fri_end TIMESTAMP NOT NULL,
+		sat_start TIMESTAMP NOT NULL,
+	sat_end TIMESTAMP NOT NULL,
+		sun_start TIMESTAMP NOT NULL,
+	sun_end TIMESTAMP NOT NULL,
+
+)
+
 GRANT ALL ON TABLE tasks TO tasker;
 GRANT ALL ON TABLE goals TO tasker;
+GRANT ALL ON TABLE tags TO tasker;
 */
