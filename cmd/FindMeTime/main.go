@@ -290,7 +290,7 @@ drop table users;
 CREATE TABLE users (
 	id  VARCHAR (20) PRIMARY KEY,
 	username VARCHAR(20) NOT NULL
-)
+);
 
 CREATE TABLE tasks (
 	task_id  VARCHAR (20) PRIMARY KEY,
@@ -308,7 +308,7 @@ CREATE TABLE goals (
 	duration INT NOT NULL,
 	created_on TIMESTAMP NOT NULL,
 	frequency INT NOT NULL,
-	owner  VARCHAR (20) NOT NULL,
+	owner  VARCHAR (20) NOT NULL
 );
 
 CREATE TABLE tags (
@@ -329,9 +329,9 @@ CREATE TABLE tags (
 		sat_start TIMESTAMP ,
 	sat_end TIMESTAMP ,
 		sun_start TIMESTAMP ,
-	sun_end TIMESTAMP ,
+	sun_end TIMESTAMP
 
-)
+);
 GRANT ALL ON TABLE users TO tasker;
 GRANT ALL ON TABLE tasks TO tasker;
 GRANT ALL ON TABLE goals TO tasker;
