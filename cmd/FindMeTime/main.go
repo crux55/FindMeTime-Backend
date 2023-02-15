@@ -106,7 +106,6 @@ func openDB() (*sql.DB, error) {
 }
 
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Print("creating tag")
 	var t CreateTask
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
@@ -150,6 +149,7 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 }
 
 func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Print("creating tag")
 	var t Tag
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
