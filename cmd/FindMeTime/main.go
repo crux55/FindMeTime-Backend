@@ -94,7 +94,7 @@ type Tag struct {
 
 func openDB() (*sql.DB, error) {
 	userName := "tasker"
-	host := "192.168.1.32"
+	host := "192.168.1.26"
 	pass := "s.o.a.d."
 	database := "findmetime"
 
