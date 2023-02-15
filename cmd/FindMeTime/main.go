@@ -76,12 +76,12 @@ type Tag struct {
 	Description string
 	Mon_start   int
 	Mon_end     int
-	Tues_start  int
-	Tues_end    int
+	Tue_start   int
+	Tue_end     int
 	Wed_start   int
 	Wed_end     int
-	Thur_start  int
-	Thur_end    int
+	Thu_start   int
+	Thu_end     int
 	Fri_start   int
 	Fri_end     int
 	Sat_start   int
@@ -158,7 +158,7 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 		return
 	}
 	db, err := openDB()
-	_, err = db.Query("INSERT INTO Tags (task_id, tag_name, description, mon_start, mon_end, tue_start, tue_end, wed_start, wed_end, thu_start, thu_end, fri_start, fri_end, sat_start, sat_end, sun_start, sun_end) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);", uuid.New(), t.Name, t.Description, t.Mon_start, t.Mon_end, t.Tues_start, t.Tues_end, t.Wed_start, t.Wed_end, t.Thur_start, t.Thur_end, t.Fri_start, t.Fri_end, t.Sat_start, t.Sat_end, t.Sun_start, t.Sun_end)
+	_, err = db.Query("INSERT INTO Tags (task_id, tag_name, description, mon_start, mon_end, tue_start, tue_end, wed_start, wed_end, thu_start, thu_end, fri_start, fri_end, sat_start, sat_end, sun_start, sun_end) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);", uuid.New(), t.Name, t.Description, t.Mon_start, t.Mon_end, t.Tue_start, t.Tue_end, t.Wed_start, t.Wed_end, t.Thu_start, t.Thu_end, t.Fri_start, t.Fri_end, t.Sat_start, t.Sat_end, t.Sun_start, t.Sun_end)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -313,20 +313,20 @@ CREATE TABLE tags (
 	task_id  VARCHAR (50) PRIMARY KEY,
 	tag_name VARCHAR(20) NOT NULL,
 	description VARCHAR(20) NOT NULL,
-	mon_start TIMESTAMP ,
-	mon_end TIMESTAMP ,
-		tue_start TIMESTAMP ,
-	tue_end TIMESTAMP ,
-		wed_start TIMESTAMP ,
-	wed_end TIMESTAMP ,
-		thu_start TIMESTAMP ,
-	thu_end TIMESTAMP ,
-		fri_start TIMESTAMP ,
-	fri_end TIMESTAMP ,
-		sat_start TIMESTAMP ,
-	sat_end TIMESTAMP ,
-		sun_start TIMESTAMP ,
-	sun_end TIMESTAMP
+	mon_start INT ,
+	mon_end INT ,
+		tue_start INT ,
+	tue_end INT ,
+		wed_start INT ,
+	wed_end INT ,
+		thu_start INT ,
+	thu_end INT ,
+		fri_start INT ,
+	fri_end INT ,
+		sat_start INT ,
+	sat_end INT ,
+		sun_start INT ,
+	sun_end INT
 
 );
 GRANT ALL ON TABLE users TO tasker;
