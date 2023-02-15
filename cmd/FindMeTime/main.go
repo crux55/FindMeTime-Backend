@@ -28,7 +28,6 @@ type CreateTask struct {
 	Description string
 	Duration    int
 	CreatedOn   string
-	Owner       User
 }
 
 type ProposedTask struct {
@@ -75,7 +74,6 @@ type Tag struct {
 	Id          string
 	Name        string
 	Description string
-	Owner       User
 	Mon_start   string
 	Mon_end     string
 	Tues_start  string
@@ -158,7 +156,7 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 		return
 	}
 	db, err := openDB()
-	_, err = db.Query("INSERT INTO Tags (task_id, tag_name, description, owner, mon_start, mon_end, tue_start, tue_end, wed_start, wed_end, thu_start, thu_end, fri_start, fri_end, sat_start, sat_end, sun_start, sun_end) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);", uuid.New(), t.Name, t.Description, t.Owner.ID, t.Mon_start, t.Mon_end, t.Tues_start, t.Tues_end, t.Wed_start, t.Wed_end, t.Thur_start, t.Thur_end, t.Fri_start, t.Fri_end, t.Sat_start, t.Sat_end, t.Sun_start, t.Sun_end)
+	_, err = db.Query("INSERT INTO Tags (task_id, tag_name, description, mon_start, mon_end, tue_start, tue_end, wed_start, wed_end, thu_start, thu_end, fri_start, fri_end, sat_start, sat_end, sun_start, sun_end) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);", uuid.New(), t.Name, t.Description, t.Mon_start, t.Mon_end, t.Tues_start, t.Tues_end, t.Wed_start, t.Wed_end, t.Thur_start, t.Thur_end, t.Fri_start, t.Fri_end, t.Sat_start, t.Sat_end, t.Sun_start, t.Sun_end)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -288,34 +286,31 @@ drop table tags;
 drop table users;
 
 CREATE TABLE users (
-	id  VARCHAR (20) PRIMARY KEY,
+	id  VARCHAR (50) PRIMARY KEY,
 	username VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE tasks (
-	task_id  VARCHAR (20) PRIMARY KEY,
+	task_id  VARCHAR (50) PRIMARY KEY,
 	title VARCHAR (20) NOT NULL,
 	description VARCHAR (20) NOT NULL,
 	duration INT NOT NULL,
-	created_on TIMESTAMP NOT NULL,
-	owner  VARCHAR (20) NOT NULL
+	created_on TIMESTAMP NOT NULL
 );
 
 CREATE TABLE goals (
-	task_id  VARCHAR (20) PRIMARY KEY,
+	task_id  VARCHAR (50) PRIMARY KEY,
 	title VARCHAR (20) NOT NULL,
 	description VARCHAR (20) NOT NULL,
 	duration INT NOT NULL,
 	created_on TIMESTAMP NOT NULL,
-	frequency INT NOT NULL,
-	owner  VARCHAR (20) NOT NULL
+	frequency INT NOT NULL
 );
 
 CREATE TABLE tags (
-	task_id  VARCHAR (20) PRIMARY KEY,
+	task_id  VARCHAR (50) PRIMARY KEY,
 	tag_name VARCHAR(20) NOT NULL,
-	description VARCHAR(20) NOT NULL,
-	owner  VARCHAR (20) NOT NULL,
+	description VARCHAR(20) NOT NULL
 	mon_start TIMESTAMP ,
 	mon_end TIMESTAMP ,
 		tue_start TIMESTAMP ,
