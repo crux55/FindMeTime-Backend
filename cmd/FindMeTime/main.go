@@ -106,6 +106,7 @@ func openDB() (*sql.DB, error) {
 }
 
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Print("creating tag")
 	var t CreateTask
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
@@ -310,7 +311,7 @@ CREATE TABLE goals (
 CREATE TABLE tags (
 	task_id  VARCHAR (50) PRIMARY KEY,
 	tag_name VARCHAR(20) NOT NULL,
-	description VARCHAR(20) NOT NULL
+	description VARCHAR(20) NOT NULL,
 	mon_start TIMESTAMP ,
 	mon_end TIMESTAMP ,
 		tue_start TIMESTAMP ,
