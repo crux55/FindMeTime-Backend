@@ -74,20 +74,20 @@ type Tag struct {
 	Id          string
 	Name        string
 	Description string
-	Mon_start   string
-	Mon_end     string
-	Tues_start  string
-	Tues_end    string
-	Wed_start   string
-	Wed_end     string
-	Thur_start  string
-	Thur_end    string
-	Fri_start   string
-	Fri_end     string
-	Sat_start   string
-	Sat_end     string
-	Sun_start   string
-	Sun_end     string
+	Mon_start   int
+	Mon_end     int
+	Tues_start  int
+	Tues_end    int
+	Wed_start   int
+	Wed_end     int
+	Thur_start  int
+	Thur_end    int
+	Fri_start   int
+	Fri_end     int
+	Sat_start   int
+	Sat_end     int
+	Sun_start   int
+	Sun_end     int
 }
 
 func openDB() (*sql.DB, error) {
