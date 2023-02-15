@@ -153,6 +153,7 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 	var t Tag
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
+		fmt.Print(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
