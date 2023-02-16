@@ -17,6 +17,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type User struct {
+	ID       string
+	UserName string
+}
+
 type CreateTask struct {
 	TaskId      string
 	Title       string
@@ -65,6 +70,41 @@ type Day struct {
 	SortedItems []ProposedTask
 }
 
+type Tag struct {
+	Id          string
+	Name        string
+	Description string
+	Mon_start   int
+	Mon_end     int
+	Tue_start   int
+	Tue_end     int
+	Wed_start   int
+	Wed_end     int
+	Thu_start   int
+	Thu_end     int
+	Fri_start   int
+	Fri_end     int
+	Sat_start   int
+	Sat_end     int
+	Sun_start   int
+	Sun_end     int
+}
+
+func openDB() (*sql.DB, error) {
+	userName := "tasker"
+	host := "192.168.1.26"
+	pass := "s.o.a.d."
+	database := "findmetime"
+
+	connStr := "postgresql://" + userName + ":" + pass + "@" + host + "/" + database + "?sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return db, err
+}
+
 func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var t CreateTask
 	err := json.NewDecoder(r.Body).Decode(&t)
@@ -72,18 +112,7 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	userName := "tasker"
-	host := "192.168.1.32"
-
-	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
-	fmt.Print("Before conn")
-	fmt.Print(t)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print("After conn")
+	db, err := openDB()
 	_, err = db.Query("INSERT INTO Tasks (task_id, title, description, duration, created_on) VALUES ($1, $2, $3, $4, $5);", uuid.New(), t.Title, t.Description, t.Duration, time.Now())
 	if err != nil {
 		log.Fatal(err)
@@ -99,17 +128,7 @@ func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		return
 	}
 
-	userName := "tasker"
-	host := "192.168.1.32"
-
-	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
-	fmt.Print("Before conn")
-	fmt.Print(g)
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print("After conn")
+	db, err := openDB()
 	_, err = db.Query("INSERT INTO Goals (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5, $6);", uuid.New(), g.Title, g.Description, g.Duration, time.Now(), g.Frequency)
 	if err != nil {
 		log.Fatal(err)
@@ -117,18 +136,39 @@ func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	fmt.Fprintf(w, "Task: %+v", g)
 }
 
-func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func CreateUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Print(".")
-	var tasks []CreateTask
+	var user User
+	err := json.NewDecoder(r.Body).Decode(&user)
 
-	userName := "tasker"
-	host := "192.168.1.32"
-
-	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
+	db, err := openDB()
+	_, err = db.Query("INSERT INTO USERS (id, username) VALUES ($1, $2)", user.ID, user.UserName)
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Print("creating tag")
+	var t Tag
+	err := json.NewDecoder(r.Body).Decode(&t)
+	if err != nil {
+		fmt.Print(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	db, err := openDB()
+	_, err = db.Query("INSERT INTO Tags (task_id, tag_name, description, mon_start, mon_end, tue_start, tue_end, wed_start, wed_end, thu_start, thu_end, fri_start, fri_end, sat_start, sat_end, sun_start, sun_end) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);", uuid.New(), t.Name, t.Description, t.Mon_start, t.Mon_end, t.Tue_start, t.Tue_end, t.Wed_start, t.Wed_end, t.Thu_start, t.Thu_end, t.Fri_start, t.Fri_end, t.Sat_start, t.Sat_end, t.Sun_start, t.Sun_end)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprintf(w, "Task: %+v", t)
+}
+
+func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var tasks []CreateTask
+
+	db, err := openDB()
 	rows, err := db.Query("select * from Tasks")
 	if err != nil {
 		log.Fatal(err)
@@ -142,7 +182,7 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 		tasks = append(tasks, t)
 	}
 
-	goaldb, err := sql.Open("postgres", connStr)
+	goaldb, err := openDB()
 	rows, err = goaldb.Query("select task_id, title, description, duration, created_on from Goals")
 	if err != nil {
 		log.Fatal(err)
@@ -182,11 +222,7 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 	var tasks []CreateTask
 
-	userName := "tasker"
-	host := "192.168.1.32"
-
-	connStr := "postgresql://" + userName + ":s.o.a.d.@" + host + "/findmetime?sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
+	db, err := openDB()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -204,7 +240,7 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	var goals []Goal
-	goaldb, goalerr := sql.Open("postgres", connStr)
+	goaldb, goalerr := openDB()
 	goalrows, goalerr := goaldb.Query("select * from Goals where task_id = Any($1)", pq.Array(taskIdList))
 	if goalerr != nil {
 		log.Fatal(err)
@@ -232,6 +268,8 @@ func main() {
 	router.POST("/api/v1/goal/create", CreateGoalHandler)
 	router.GET("/api/v1/task/all", GetTasksHandler)
 	router.POST("/api/v1/findtime", FindTime)
+	router.POST("/api/v1/users", CreateUserHandler)
+	router.POST("/api/v1/tags", CreateTagHandler)
 	handler := cors.Default().Handler(router)
 	fmt.Print("Started....")
 	http.ListenAndServe(":8080", handler)
@@ -246,23 +284,53 @@ func main() {
 \c findmetime;
 drop table tasks;
 drop table goals;
+drop table tags;
+drop table users;
+
+CREATE TABLE users (
+	id  VARCHAR (50) PRIMARY KEY,
+	username VARCHAR(20) NOT NULL
+);
+
 CREATE TABLE tasks (
-        task_id  VARCHAR ( 50 ) PRIMARY KEY,
-        title VARCHAR ( 50 ) NOT NULL,
-        description VARCHAR ( 50 ) NOT NULL,
-        duration INT NOT NULL,
-        created_on TIMESTAMP NOT NULL
+	task_id  VARCHAR (50) PRIMARY KEY,
+	title VARCHAR (20) NOT NULL,
+	description VARCHAR (20) NOT NULL,
+	duration INT NOT NULL,
+	created_on TIMESTAMP NOT NULL
 );
 
 CREATE TABLE goals (
-        task_id  VARCHAR ( 50 ) PRIMARY KEY,
-        title VARCHAR ( 50 ) NOT NULL,
-        description VARCHAR ( 50 ) NOT NULL,
-        duration INT NOT NULL,
-        created_on TIMESTAMP NOT NULL,
-		frequency INT NOT NULL
+	task_id  VARCHAR (50) PRIMARY KEY,
+	title VARCHAR (20) NOT NULL,
+	description VARCHAR (20) NOT NULL,
+	duration INT NOT NULL,
+	created_on TIMESTAMP NOT NULL,
+	frequency INT NOT NULL
 );
 
+CREATE TABLE tags (
+	task_id  VARCHAR (50) PRIMARY KEY,
+	tag_name VARCHAR(20) NOT NULL,
+	description VARCHAR(20) NOT NULL,
+	mon_start INT ,
+	mon_end INT ,
+		tue_start INT ,
+	tue_end INT ,
+		wed_start INT ,
+	wed_end INT ,
+		thu_start INT ,
+	thu_end INT ,
+		fri_start INT ,
+	fri_end INT ,
+		sat_start INT ,
+	sat_end INT ,
+		sun_start INT ,
+	sun_end INT
+
+);
+GRANT ALL ON TABLE users TO tasker;
 GRANT ALL ON TABLE tasks TO tasker;
 GRANT ALL ON TABLE goals TO tasker;
+GRANT ALL ON TABLE tags TO tasker;
 */
