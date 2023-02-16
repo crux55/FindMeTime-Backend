@@ -165,6 +165,25 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 	fmt.Fprintf(w, "Task: %+v", t)
 }
 
+func GetTagsHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var tags []Tag
+
+	db, err := openDB()
+	rows, err := db.Query("select * from Tags")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var t Tag
+		err = rows.Scan(&t.Id, &t.Name, &t.Description, &t.Mon_start, &t.Mon_end, &t.Tue_start, &t.Tue_end, &t.Wed_start, &t.Wed_end, &t.Thu_start, &t.Thu_end, &t.Fri_start, &t.Fri_end, &t.Sat_start, &t.Sat_end, &t.Sun_start, &t.Sun_end)
+		if err != nil {
+			fmt.Print("Scan: %v", err)
+		}
+		tags = append(tags, t)
+	}
+	json.NewEncoder(w).Encode(tags)
+}
+
 func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var tasks []CreateTask
 
@@ -270,6 +289,7 @@ func main() {
 	router.POST("/api/v1/findtime", FindTime)
 	router.POST("/api/v1/users", CreateUserHandler)
 	router.POST("/api/v1/tags", CreateTagHandler)
+	router.GET("/api/v1/tags", GetTagsHandler)
 	handler := cors.Default().Handler(router)
 	fmt.Print("Started....")
 	http.ListenAndServe(":8080", handler)
