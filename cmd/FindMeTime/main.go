@@ -85,12 +85,14 @@ type TimeSlot struct {
 }
 
 func openDB() (*sql.DB, error) {
-	userName := "tasker"
-	host := "192.168.1.26"
-	pass := "s.o.a.d."
-	database := "findmetime"
+	loadConfig, _ := LoadConfig("config.yml")
+	config := loadConfig.DatabaseConfig
+	// userName := "tasker"
+	// host := "192.168.1.26"
+	// pass := "s.o.a.d."
+	// database := "findmetime"
 
-	connStr := "postgresql://" + userName + ":" + pass + "@" + host + "/" + database + "?sslmode=disable"
+	connStr := "postgresql://" + config.Username + ":" + config.Password + "@" + config.Host + "/" + config.DatabaseName + "?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		fmt.Print(err)

@@ -1,0 +1,20 @@
+version: '3'
+services:
+  postgres:
+    image: postgres:latest
+    container_name: my_postgres
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: dev_fmt
+    ports:
+      - "5432:5432"
+  fmtbe:
+    build: .
+    container_name: fmtbe
+    ports:
+      - "8080:8080"
+    network_mode: host
+    depends_on:
+      - postgres
+
