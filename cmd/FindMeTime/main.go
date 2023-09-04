@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -85,7 +86,7 @@ type TimeSlot struct {
 }
 
 func openDB() (*sql.DB, error) {
-	loadConfig, _ := LoadConfig("../../config.yml")
+	loadConfig, _ := LoadConfig(os.Args[1])
 	config := loadConfig.DatabaseConfig
 	connStr := "postgresql://" + config.Username + ":" + config.Password + "@" + config.Host + "/" + config.DatabaseName + "?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
