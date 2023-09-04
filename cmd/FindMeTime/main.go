@@ -85,7 +85,7 @@ type TimeSlot struct {
 }
 
 func openDB() (*sql.DB, error) {
-	loadConfig, _ := LoadConfig("config.yml")
+	loadConfig, _ := LoadConfig("../../config.yml")
 	config := loadConfig.DatabaseConfig
 	// userName := "tasker"
 	// host := "192.168.1.26"
@@ -173,7 +173,7 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 		}
 		timeSlotIds = append(timeSlotIds, id.String())
 	}
-	_, err = db.Query("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, ($4));", uuid.New(), t.Name, t.Description, pq.Array(&timeSlotIds))
+	_, err = db.Query("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, $4);", uuid.New(), t.Name, t.Description, pq.Array(&timeSlotIds))
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -236,8 +236,6 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Print("in find time")
 	var findTimeRequest FindTimeRequest
-	var timeSlotsOnly []TimeSlot
-	var timeSlotsNot []TimeSlot
 
 	err := json.NewDecoder(r.Body).Decode(&findTimeRequest)
 	if err != nil {
@@ -247,14 +245,9 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	var taskIdList []string
-	var goalIdList []string
 
 	for _, v := range findTimeRequest.Tasks {
 		taskIdList = append(taskIdList, v)
-	}
-
-	for _, v := range findTimeRequest.Goals {
-		goalIdList = append(goalIdList, v)
 	}
 
 	var tasks []CreateTask
@@ -277,18 +270,53 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		if err != nil {
 			fmt.Print("Scan: %v", err)
 		}
-		toIds = strings.Split(to[1:len(to)-1], ",")
-		tnIds = strings.Split(tn[1:len(tn)-1], ",")
+		if len(to) > 0 {
+			toIds = strings.Split(to[1:len(to)-1], ",")
+		} else {
+			toIds = []string{}
+		}
+		if len(tn) > 0 {
+			tnIds = strings.Split(tn[1:len(tn)-1], ",")
+		} else {
+			tnIds = []string{}
+		}
 
 		for _, tagId := range toIds {
+			tagId = strings.ReplaceAll(tagId, "\"", "")
 			var timeSlots []TimeSlot
-			timeslotrows, err := db.Query("select * from time_slots where id = Any(select time_slots from tags where id = $1);", tagId)
+			fmt.Print("looping toIds", tagId)
+
+			getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
+			timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
+
+			// timeSlotIds, err := db.Query("select time_slots from tags where id = $1;", tagId)
+			var timeSlotIdList []string
+			for timeSlotIds.Next() {
+				var timeSlotId string
+				err = timeSlotIds.Scan(&timeSlotId)
+				var ts string
+				ts = strings.ReplaceAll(timeSlotId, "{", "")
+				ts = strings.ReplaceAll(ts, "}", "")
+				ts = strings.ReplaceAll(ts, "\"", "")
+				timeSlotIdList = append(timeSlotIdList, ts)
+				if err != nil {
+					fmt.Print("Scan: %v", err)
+				}
+			}
+			timeSlotQuery, _ := db.Prepare("select day_index, start_time, end_time from time_slots where id = Any($1);")
+			timeslotrows, err := timeSlotQuery.Query(pq.Array(timeSlotIdList))
 			if err != nil {
 				fmt.Print("Scan: %v", err)
 			}
 			for timeslotrows.Next() {
 				var timeSlot TimeSlot
-				err = timeslotrows.Scan(&timeSlot.DayIndex, &timeSlot.StartTime, &timeSlot.EndTime)
+				var day_index int
+				var start_time int
+				var end_time int
+				err = timeslotrows.Scan(&day_index, &start_time, &end_time)
+				timeSlot.DayIndex = day_index
+				timeSlot.StartTime = start_time
+				timeSlot.EndTime = end_time
 				timeSlots = append(timeSlots, timeSlot)
 			}
 			t.TagsOnly = []Tag{Tag{TimeSlots: timeSlots}}
@@ -296,7 +324,7 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 
 		for _, tagId := range tnIds {
 			var timeSlots []TimeSlot
-			timeslotrows, err := db.Query("select * from time_slots where id = Any(select time_slots from tags where id = $1);", tagId)
+			timeslotrows, err := db.Query("select * from time_slots where id = Any(select time_slots from tags where id = $1);", string(tagId))
 			if err != nil {
 				fmt.Print("Scan: %v", err)
 			}
@@ -311,55 +339,8 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		tasks = append(tasks, t)
 	}
 
-	var goals []Goal
-	// goalrows, goalerr := db.Query("select * from Goals where task_id = Any($1)", pq.Array(taskIdList))
-	// if goalerr != nil {
-	// 	fmt.Print(err)
-	// }
-	// for goalrows.Next() {
-	// 	var g Goal
-	// 	var t CreateTask
-	// 	err = goalrows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &g.Frequency)
-	// 	if err != nil {
-	// 		fmt.Print("Scan: %v", err)
-	// 	}
-	// 	g.CreateTask = &t
-	// 	goals = append(goals, g)
-	// }
-
-	// var tagsOnlyIds []string
-	// var tagsNotIds []string
-	// var timeSlotsOnly []TimeSlot
-	// var timeSlotsNot []TimeSlot
-	// for _, task := range tasks {
-	// 	for _, tag := range task.TagsOnly {
-	// 		tagsOnlyIds = append(tagsOnlyIds, tag.Id)
-	// 	}
-	// 	timeslotrows, timeSloterr := db.Query("select * from time_slots where id = Any($1)", pq.Array(task.TagsOnly))
-	// 	if timeSloterr != nil {
-	// 		fmt.Print(timeSloterr)
-	// 	}
-	// 	for timeslotrows.Next() {
-	// 		var timeSlot TimeSlot
-	// 		err = timeslotrows.Scan(&timeSlot.DayIndex, &timeSlot.StartTime, &timeSlot.EndTime)
-	// 		timeSlotsOnly = append(timeSlotsOnly, timeSlot)
-	// 	}
-
-	// 	for _, tag := range task.TagsNot {
-	// 		tagsNotIds = append(tagsNotIds, tag.Id)
-	// 	}
-	// 	timeslotrows, timeSloterr = db.Query("select * from time_slots where id = Any($1)", pq.Array(task.TagsNot))
-	// 	if timeSloterr != nil {
-	// 		fmt.Print(timeSloterr)
-	// 	}
-	// 	for timeslotrows.Next() {
-	// 		var timeSlot TimeSlot
-	// 		err = timeslotrows.Scan(&timeSlot.DayIndex, &timeSlot.StartTime, &timeSlot.EndTime)
-	// 		timeSlotsNot = append(timeSlotsNot, timeSlot)
-	// 	}
-	// }
-
-	response := FindTimeWorker(tasks, goals, timeSlotsOnly, timeSlotsNot)
+	fmt.Print("tasks", tasks)
+	response := FindTimeWorker(tasks)
 
 	json.NewEncoder(w).Encode(response)
 }

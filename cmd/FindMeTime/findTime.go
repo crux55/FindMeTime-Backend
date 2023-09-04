@@ -1,13 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
 	"time"
 )
 
-func FindTimeWorker(tasks []CreateTask, goals []Goal, timeSlotsOnly []TimeSlot, timeSlotsNot []TimeSlot) *FindTimeResponse {
+func FindTimeWorker(tasks []CreateTask) *FindTimeResponse {
 	// hoursInAday := [24]int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
 	// blockers := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 23}
 	amountOfDays := 7
@@ -17,7 +18,7 @@ func FindTimeWorker(tasks []CreateTask, goals []Goal, timeSlotsOnly []TimeSlot, 
 	var returnerGoals []ProposedGoal
 	returnerWeek := Week{Days: make(map[string]Day)}
 	startDate := nextWeeklyEvent(time.Monday, 0)
-	allAvailableTimes := make(map[int][]int)
+	// allAvailableTimes := make(map[int][]int)
 
 	// for _, hidElement := range hoursInAday {
 	// 	contained := false
@@ -30,34 +31,35 @@ func FindTimeWorker(tasks []CreateTask, goals []Goal, timeSlotsOnly []TimeSlot, 
 	// 		timeSlots = append(timeSlots, hidElement)
 	// 	}
 	// }
+	// fmt.Println("about to loop through timeSlotsOnly")
+	// for _, timeSlot := range timeSlotsOnly {
+	// 	var tmpTimes []int
+	// 	// tmpTimes[tag[timeSlot.DayIndex]] = make([]int, timeSlot.EndTime - timeSlot.StartTime)
+	// 	for n := timeSlot.StartTime; n < timeSlot.EndTime; n++ {
+	// 		tmpTimes = append(tmpTimes, n)
+	// 	}
+	// 	if allAvailableTimes[timeSlot.DayIndex] == nil {
+	// 		allAvailableTimes[timeSlot.DayIndex] = make([]int, len(tmpTimes))
+	// 	}
+	// 	allAvailableTimes[timeSlot.DayIndex] = removeDuplicateInt(append(allAvailableTimes[timeSlot.DayIndex], tmpTimes...))
 
-	for _, timeSlot := range timeSlotsOnly {
-		var tmpTimes []int
-		// tmpTimes[tag[timeSlot.DayIndex]] = make([]int, timeSlot.EndTime - timeSlot.StartTime)
-		for n := timeSlot.StartTime; n < timeSlot.EndTime; n++ {
-			tmpTimes = append(tmpTimes, n)
-		}
-		if allAvailableTimes[timeSlot.DayIndex] == nil {
-			allAvailableTimes[timeSlot.DayIndex] = make([]int, len(tmpTimes))
-		}
-		allAvailableTimes[timeSlot.DayIndex] = removeDuplicateInt(append(allAvailableTimes[timeSlot.DayIndex], tmpTimes...))
-
+	// }
+	// fmt.Println("about to loop through timeSlotsNot")
+	// for _, tsn := range timeSlotsNot {
+	// 	for n := tsn.StartTime; n < tsn.EndTime; n++ {
+	// 		j := 0
+	// 		for _, allowedTime := range allAvailableTimes[tsn.DayIndex] {
+	// 			if allowedTime == n {
+	// 				allAvailableTimes[tsn.DayIndex][j] = allowedTime
+	// 				j++
+	// 			}
+	// 		}
+	// 		allAvailableTimes[tsn.DayIndex] = allAvailableTimes[tsn.DayIndex][:j]
+	// 	}
+	// }
+	for i := 0; i < amountOfDays; i++ {
+		returnerWeek.Days[nextWeeklyEvent(time.Monday, i)] = Day{}
 	}
-
-	for _, tsn := range timeSlotsNot {
-		for n := tsn.StartTime; n < tsn.EndTime; n++ {
-			j := 0
-			for _, allowedTime := range allAvailableTimes[tsn.DayIndex] {
-				if allowedTime == n {
-					allAvailableTimes[tsn.DayIndex][j] = allowedTime
-					j++
-				}
-			}
-			allAvailableTimes[tsn.DayIndex] = allAvailableTimes[tsn.DayIndex][:j]
-		}
-	}
-
-	// returnerWeek.Days[nextWeeklyEvent(time.Monday, i)] = Day{}
 	// allAvailableTimes[i] = make([]int, len(timeSlots))
 	// copy(allAvailableTimes[i], timeSlots)
 
@@ -72,27 +74,60 @@ func FindTimeWorker(tasks []CreateTask, goals []Goal, timeSlotsOnly []TimeSlot, 
 	// if requiredTime > len(timeSlots) {
 	// 	return nil
 	// }
-
+	fmt.Println("about to loop through tasks")
 	for index, _ := range tasks {
-		_, proposedDate, time := getDayIndexDateAndTime(tasks[index].Title, amountOfDays, returnerWeek, &allAvailableTimes)
+		_, proposedDate, time := getDayIndexDateAndTime(tasks[index].Title, amountOfDays, returnerWeek, getAvailableTimes(tasks[index]))
 		putEventIntoWeek(&tasks[index], proposedDate, time, &returnerWeek)
 		sort.Slice(returnerWeek.Days[proposedDate].SortedItems, func(i, j int) bool {
 			return returnerWeek.Days[proposedDate].SortedItems[i].StartTime < returnerWeek.Days[proposedDate].SortedItems[j].StartTime
 		})
 	}
+	// fmt.Println("about to loop through goals")
+	// for goalIndex, goal := range goals {
+	// 	returnerGoals = append(returnerGoals, ProposedGoal{&goals[goalIndex], 0})
+	// 	for frequencyIndex := 0; frequencyIndex < goal.Frequency; frequencyIndex++ {
+	// 		_, proposedDate, time := getDayIndexDateAndTime(goal.Title, amountOfDays, returnerWeek, &allAvailableTimes)
+	// 		putEventIntoWeek(goals[goalIndex].CreateTask, proposedDate, time, &returnerWeek)
+	// 		sort.Slice(returnerWeek.Days[proposedDate].SortedItems, func(i, j int) bool {
+	// 			return returnerWeek.Days[proposedDate].SortedItems[i].StartTime < returnerWeek.Days[proposedDate].SortedItems[j].StartTime
+	// 		})
+	// 	}
+	// }
+	fmt.Println("about to return response", returnerTasks)
+	return &FindTimeResponse{ProposedTasks: returnerTasks, ProposedGoals: returnerGoals, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
+}
 
-	for goalIndex, goal := range goals {
-		returnerGoals = append(returnerGoals, ProposedGoal{&goals[goalIndex], 0})
-		for frequencyIndex := 0; frequencyIndex < goal.Frequency; frequencyIndex++ {
-			_, proposedDate, time := getDayIndexDateAndTime(goal.Title, amountOfDays, returnerWeek, &allAvailableTimes)
-			putEventIntoWeek(goals[goalIndex].CreateTask, proposedDate, time, &returnerWeek)
-			sort.Slice(returnerWeek.Days[proposedDate].SortedItems, func(i, j int) bool {
-				return returnerWeek.Days[proposedDate].SortedItems[i].StartTime < returnerWeek.Days[proposedDate].SortedItems[j].StartTime
-			})
+func getAvailableTimes(task CreateTask) *map[int][]int {
+	allAvailableTimes := make(map[int][]int)
+	for _, tag := range task.TagsOnly {
+		for _, timeSlot := range tag.TimeSlots {
+			var tmpTimes []int
+			for n := timeSlot.StartTime; n < timeSlot.EndTime; n++ {
+				tmpTimes = append(tmpTimes, n)
+			}
+			if allAvailableTimes[timeSlot.DayIndex] == nil {
+				allAvailableTimes[timeSlot.DayIndex] = make([]int, len(tmpTimes))
+			}
+			allAvailableTimes[timeSlot.DayIndex] = removeDuplicateInt(append(allAvailableTimes[timeSlot.DayIndex], tmpTimes...))
+
 		}
 	}
 
-	return &FindTimeResponse{ProposedTasks: returnerTasks, ProposedGoals: returnerGoals, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
+	for _, notag := range task.TagsNot {
+		for _, timeSlot := range notag.TimeSlots {
+			for n := timeSlot.StartTime; n < timeSlot.EndTime; n++ {
+				j := 0
+				for _, allowedTime := range allAvailableTimes[timeSlot.DayIndex] {
+					if allowedTime == n {
+						allAvailableTimes[timeSlot.DayIndex][j] = allowedTime
+						j++
+					}
+				}
+				allAvailableTimes[timeSlot.DayIndex] = allAvailableTimes[timeSlot.DayIndex][:j]
+			}
+		}
+	}
+	return &allAvailableTimes
 }
 
 func nextWeeklyEvent(weekday time.Weekday, mod int) string {
