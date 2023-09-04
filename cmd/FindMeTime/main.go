@@ -87,11 +87,6 @@ type TimeSlot struct {
 func openDB() (*sql.DB, error) {
 	loadConfig, _ := LoadConfig("../../config.yml")
 	config := loadConfig.DatabaseConfig
-	// userName := "tasker"
-	// host := "192.168.1.26"
-	// pass := "s.o.a.d."
-	// database := "findmetime"
-
 	connStr := "postgresql://" + config.Username + ":" + config.Password + "@" + config.Host + "/" + config.DatabaseName + "?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -215,21 +210,6 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 		}
 		tasks = append(tasks, t)
 	}
-
-	// goaldb, err := openDB()
-	// rows, err = goaldb.Query("select id, title, description, duration, created_on from Goals")
-	// if err != nil {
-	// 	fmt.Print(err)
-	// }
-	// for rows.Next() {
-	// 	var t CreateTask
-	// 	err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
-	// 	if err != nil {
-	// 		fmt.Print("Scan: %v", err)
-	// 	}
-	// 	tasks = append(tasks, t)
-	// }
-
 	json.NewEncoder(w).Encode(tasks)
 }
 
@@ -289,7 +269,6 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
 			timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
 
-			// timeSlotIds, err := db.Query("select time_slots from tags where id = $1;", tagId)
 			var timeSlotIdList []string
 			for timeSlotIds.Next() {
 				var timeSlotId string
@@ -359,62 +338,3 @@ func main() {
 	fmt.Print("Started....")
 	http.ListenAndServe(":8080", handler)
 }
-
-// func enableCors(w *http.ResponseWriter) {
-// 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-// 	fmt.Print(".")
-// }
-
-/*
-\c findmetime;
-drop table tasks;
-drop table goals;
-drop table tags;
-drop table users;
-drop table time_slots;
-
-CREATE TABLE users (
-	id  VARCHAR (50) PRIMARY KEY,
-	username VARCHAR(20) NOT NULL
-);
-
-CREATE TABLE tasks (
-	id  VARCHAR (50) PRIMARY KEY,
-	title VARCHAR (20) NOT NULL,
-	description VARCHAR (20) NOT NULL,
-	duration INT NOT NULL,
-	created_on TIMESTAMP NOT NULL,
-	tags_only VARCHAR (5000)[],
-	tags_not VARCHAR (5000)[]
-);
-
-CREATE TABLE goals (
-	task_id  VARCHAR (50) PRIMARY KEY,
-	title VARCHAR (20) NOT NULL,
-	description VARCHAR (20) NOT NULL,
-	duration INT NOT NULL,
-	created_on TIMESTAMP NOT NULL,
-	frequency INT NOT NULL
-);
-
-CREATE TABLE tags (
-	id  VARCHAR (50) PRIMARY KEY,
-	tag_name VARCHAR(20) NOT NULL,
-	description VARCHAR(20) NOT NULL,
-	time_slots VARCHAR (5000)[]
-
-);
-
-CREATE TABLE time_slots (
-	id  VARCHAR (50) PRIMARY KEY,
-	day_index integer,
-	start_time integer,
-	end_time integer
-);
-
-GRANT ALL ON TABLE users TO tasker;
-GRANT ALL ON TABLE tasks TO tasker;
-GRANT ALL ON TABLE goals TO tasker;
-GRANT ALL ON TABLE tags TO tasker;
-GRANT ALL ON TABLE time_slots TO tasker;
-*/
