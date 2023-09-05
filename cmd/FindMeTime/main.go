@@ -111,7 +111,7 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	}
 
 	for _, tagNot := range t.TagsNot {
-		tagNotIds = append(tagOnlyIds, tagNot.Id)
+		tagNotIds = append(tagNotIds, tagNot.Id)
 	}
 
 	db, err := openDB()
@@ -245,76 +245,80 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		var t CreateTask
 		var to string
 		var tn string
-		var toIds []string
-		var tnIds []string
+		// var toIds []string
+		// var tnIds []string
 		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &to, &tn)
-		if err != nil {
-			fmt.Print("Scan: %v", err)
-		}
-		if len(to) > 0 {
-			toIds = strings.Split(to[1:len(to)-1], ",")
-		} else {
-			toIds = []string{}
-		}
-		if len(tn) > 0 {
-			tnIds = strings.Split(tn[1:len(tn)-1], ",")
-		} else {
-			tnIds = []string{}
-		}
+		// if err != nil {
+		// 	fmt.Print("Scan: %v", err)
+		// }
+		// if len(to) > 0 {
+		// 	toIds = strings.Split(to[1:len(to)-1], ",")
+		// } else {
+		// 	toIds = []string{}
+		// }
+		// if len(tn) > 0 {
+		// 	tnIds = strings.Split(tn[1:len(tn)-1], ",")
+		// } else {
+		// 	tnIds = []string{}
+		// }
 
-		for _, tagId := range toIds {
-			tagId = strings.ReplaceAll(tagId, "\"", "")
-			var timeSlots []TimeSlot
-			fmt.Print("looping toIds", tagId)
+		t.TagsOnly = resolveTags(to, db)
+		t.TagsNot = resolveTags(tn, db)
 
-			getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
-			timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
+		// for _, tagId := range toIds {
+		// 	tagId = strings.ReplaceAll(tagId, "\"", "")
+		// 	var timeSlots []TimeSlot
+		// 	fmt.Println("looping toIds", tagId)
 
-			var timeSlotIdList []string
-			for timeSlotIds.Next() {
-				var timeSlotId string
-				err = timeSlotIds.Scan(&timeSlotId)
-				var ts string
-				ts = strings.ReplaceAll(timeSlotId, "{", "")
-				ts = strings.ReplaceAll(ts, "}", "")
-				ts = strings.ReplaceAll(ts, "\"", "")
-				timeSlotIdList = append(timeSlotIdList, ts)
-				if err != nil {
-					fmt.Print("Scan: %v", err)
-				}
-			}
-			timeSlotQuery, _ := db.Prepare("select day_index, start_time, end_time from time_slots where id = Any($1);")
-			timeslotrows, err := timeSlotQuery.Query(pq.Array(timeSlotIdList))
-			if err != nil {
-				fmt.Print("Scan: %v", err)
-			}
-			for timeslotrows.Next() {
-				var timeSlot TimeSlot
-				var day_index int
-				var start_time int
-				var end_time int
-				err = timeslotrows.Scan(&day_index, &start_time, &end_time)
-				timeSlot.DayIndex = day_index
-				timeSlot.StartTime = start_time
-				timeSlot.EndTime = end_time
-				timeSlots = append(timeSlots, timeSlot)
-			}
-			t.TagsOnly = []Tag{Tag{TimeSlots: timeSlots}}
-		}
+		// 	getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
+		// 	timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
 
-		for _, tagId := range tnIds {
-			var timeSlots []TimeSlot
-			timeslotrows, err := db.Query("select * from time_slots where id = Any(select time_slots from tags where id = $1);", string(tagId))
-			if err != nil {
-				fmt.Print("Scan: %v", err)
-			}
-			for timeslotrows.Next() {
-				var timeSlot TimeSlot
-				err = timeslotrows.Scan(&timeSlot.DayIndex, &timeSlot.StartTime, &timeSlot.EndTime)
-				timeSlots = append(timeSlots, timeSlot)
-			}
-			t.TagsNot = []Tag{Tag{TimeSlots: timeSlots}}
-		}
+		// 	var timeSlotIdList []string
+		// 	for timeSlotIds.Next() {
+		// 		var timeSlotId string
+		// 		err = timeSlotIds.Scan(&timeSlotId)
+		// 		var ts string
+		// 		ts = strings.ReplaceAll(timeSlotId, "{", "")
+		// 		ts = strings.ReplaceAll(ts, "}", "")
+		// 		ts = strings.ReplaceAll(ts, "\"", "")
+		// 		timeSlotIdList = append(timeSlotIdList, ts)
+		// 		if err != nil {
+		// 			fmt.Print("Scan: %v", err)
+		// 		}
+		// 	}
+
+		// 	timeSlotQuery, _ := db.Prepare("select day_index, start_time, end_time from time_slots where id = Any($1);")
+		// 	timeslotrows, err := timeSlotQuery.Query(pq.Array(strings.Split(timeSlotIdList[0], ",")))
+		// 	if err != nil {
+		// 		fmt.Print("Scan: %v", err)
+		// 	}
+		// 	for timeslotrows.Next() {
+		// 		var timeSlot TimeSlot
+		// 		var day_index int
+		// 		var start_time int
+		// 		var end_time int
+		// 		err = timeslotrows.Scan(&day_index, &start_time, &end_time)
+		// 		timeSlot.DayIndex = day_index
+		// 		timeSlot.StartTime = start_time
+		// 		timeSlot.EndTime = end_time
+		// 		timeSlots = append(timeSlots, timeSlot)
+		// 	}
+		// 	t.TagsOnly = []Tag{Tag{TimeSlots: timeSlots}}
+		// }
+
+		// for _, tagId := range tnIds {
+		// 	var timeSlots []TimeSlot
+		// 	timeslotrows, err := db.Query("select * from time_slots where id = Any(select time_slots from tags where id = $1);", string(tagId))
+		// 	if err != nil {
+		// 		fmt.Print("Scan: %v", err)
+		// 	}
+		// 	for timeslotrows.Next() {
+		// 		var timeSlot TimeSlot
+		// 		err = timeslotrows.Scan(&timeSlot.DayIndex, &timeSlot.StartTime, &timeSlot.EndTime)
+		// 		timeSlots = append(timeSlots, timeSlot)
+		// 	}
+		// 	t.TagsNot = []Tag{Tag{TimeSlots: timeSlots}}
+		// }
 
 		tasks = append(tasks, t)
 	}
@@ -323,6 +327,52 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	response := FindTimeWorker(tasks)
 
 	json.NewEncoder(w).Encode(response)
+}
+
+func stripArrayChars(str string) string {
+	str = strings.ReplaceAll(str, "{", "")
+	str = strings.ReplaceAll(str, "}", "")
+	str = strings.ReplaceAll(str, "\"", "")
+	return str
+}
+
+func resolveTags(tagIdStr string, db *sql.DB) []Tag {
+	var timeSlots []TimeSlot
+	tagIds := strings.Split(stripArrayChars(tagIdStr), ",")
+	for _, tagId := range tagIds {
+		fmt.Println("looping tag ids", tagId)
+
+		getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
+		timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
+
+		var timeSlotIdList []string
+		for timeSlotIds.Next() {
+			var timeSlotId string
+			err = timeSlotIds.Scan(&timeSlotId)
+			timeSlotIdList = append(timeSlotIdList, stripArrayChars(timeSlotId)) //pretty sure this isn't needed
+			if err != nil {
+				fmt.Print("Scan: %v", err)
+			}
+		}
+
+		timeSlotQuery, _ := db.Prepare("select day_index, start_time, end_time from time_slots where id = Any($1);")
+		timeslotrows, err := timeSlotQuery.Query(pq.Array(strings.Split(timeSlotIdList[0], ",")))
+		if err != nil {
+			fmt.Print("Scan: %v", err)
+		}
+		for timeslotrows.Next() {
+			var timeSlot TimeSlot
+			var day_index int
+			var start_time int
+			var end_time int
+			err = timeslotrows.Scan(&day_index, &start_time, &end_time)
+			timeSlot.DayIndex = day_index
+			timeSlot.StartTime = start_time
+			timeSlot.EndTime = end_time
+			timeSlots = append(timeSlots, timeSlot)
+		}
+	}
+	return []Tag{Tag{TimeSlots: timeSlots}}
 }
 
 func main() {
