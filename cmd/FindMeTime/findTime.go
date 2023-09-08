@@ -5,11 +5,12 @@ import (
 	"math/rand"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
 func FindTimeWorker(tasks []CreateTask) *FindTimeResponse {
-	amountOfDays := 7
+	amountOfDays := 1
 	var returnerTasks []ProposedTask
 	var returnerGoals []ProposedGoal
 	returnerWeek := Week{Days: make(map[string]Day)}
@@ -19,18 +20,25 @@ func FindTimeWorker(tasks []CreateTask) *FindTimeResponse {
 		returnerWeek.Days[nextWeeklyEvent(time.Monday, i)] = Day{}
 	}
 	fmt.Println("about to loop through tasks")
-	for index, task := range tasks {
-		_, proposedDate, time := getDayIndexDateAndTime(task.Title, amountOfDays, returnerWeek, getAvailableTimes(task), task.Duration)
-		putEventIntoWeek(&tasks[index], proposedDate, time, &returnerWeek)
-		sort.Slice(returnerWeek.Days[proposedDate].SortedItems, func(i, j int) bool {
-			return returnerWeek.Days[proposedDate].SortedItems[i].StartTime < returnerWeek.Days[proposedDate].SortedItems[j].StartTime
-		})
+	for taskIndex, task := range tasks {
+		dayIndex, proposedDate, time := getDayIndexDateAndTime(task.Title, amountOfDays, returnerWeek, getAvailableTimes(task, returnerWeek), task.Duration)
+		if dayIndex == -1 {
+			fmt.Println("failed to find time for ", task.Title)
+			continue
+		}
+		putEventIntoWeek(&tasks[taskIndex], proposedDate, time, &returnerWeek)
 	}
 	fmt.Println("about to return response", returnerTasks)
+	for index := range returnerWeek.Days {
+		sort.Slice(returnerWeek.Days[index].SortedItems, func(i, j int) bool {
+			return returnerWeek.Days[index].SortedItems[i].StartTime < returnerWeek.Days[index].SortedItems[j].StartTime
+		})
+	}
+
 	return &FindTimeResponse{ProposedTasks: returnerTasks, ProposedGoals: returnerGoals, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
 }
 
-func getAvailableTimes(task CreateTask) *map[int][]int {
+func getAvailableTimes(task CreateTask, returnerWeek Week) *map[int][]int {
 	allAvailableTimes := make(map[int][]int)
 	for _, tag := range task.TagsOnly {
 		for _, timeSlot := range tag.TimeSlots {
@@ -62,7 +70,33 @@ func getAvailableTimes(task CreateTask) *map[int][]int {
 		}
 	}
 
+	for dayIndex, day := range returnerWeek.Days {
+		for _, item := range day.SortedItems {
+			di := indexOf(dayIndex, returnerWeek.Days)
+			times, _ := allAvailableTimes[di]
+			var filteredTimes []int
+			for _, t := range times {
+				castStartTime, _ := strconv.Atoi(strings.Split(item.StartTime, ":")[0])
+				if t < castStartTime || t > castStartTime+item.Duration-1 {
+					filteredTimes = append(filteredTimes, t)
+				}
+			}
+			allAvailableTimes[di] = removeDuplicateInt(filteredTimes)
+		}
+	}
+	fmt.Println("Got needed times")
 	return &allAvailableTimes
+}
+
+func indexOf(_str string, dayArray map[string]Day) int {
+	i := 0
+	for str := range dayArray {
+		if _str == str {
+			return i
+		}
+		i++
+	}
+	return -1
 }
 
 func nextWeeklyEvent(weekday time.Weekday, mod int) string {
@@ -96,14 +130,30 @@ func contains(tasks []ProposedTask, title string) bool {
 }
 
 func getDayIndexDateAndTime(taskName string, amountOfDays int, returnerWeek Week, allAvailableTimes *map[int][]int, duration int) (int, string, string) {
-	for {
-		dayIndex, time, slotPosition := getDayIndexAndTime(allAvailableTimes, amountOfDays, duration)
+	tries := 0
+	fmt.Println("Getting day index date and time")
+	for tries < 250 {
+		dayIndex, proposedTime, slotPosition := getDayIndexAndTime(allAvailableTimes, amountOfDays, duration)
 		proposedDate := Keys(returnerWeek.Days)[dayIndex]
-		if !contains(returnerWeek.Days[proposedDate].SortedItems, taskName) {
-			(*allAvailableTimes)[dayIndex] = append((*allAvailableTimes)[dayIndex][:slotPosition], (*allAvailableTimes)[dayIndex][slotPosition+1:]...)
-			return dayIndex, proposedDate, time
+		clash := false
+		for _, item := range returnerWeek.Days[proposedDate].SortedItems {
+			castTime, _ := strconv.Atoi(strings.Split(item.StartTime, ":")[0])
+			castProposedTime, _ := strconv.Atoi(strings.Split(proposedTime, ":")[0])
+			if castProposedTime+item.Duration > castTime &&
+				castProposedTime < castTime+item.Duration {
+				clash = true
+				fmt.Println("Found clash")
+				break
+			}
 		}
+		if !clash && !contains(returnerWeek.Days[proposedDate].SortedItems, taskName) {
+			(*allAvailableTimes)[dayIndex] = append((*allAvailableTimes)[dayIndex][:slotPosition], (*allAvailableTimes)[dayIndex][slotPosition+1:]...)
+			return dayIndex, proposedDate, proposedTime
+		}
+		tries++
+		fmt.Println("Increasing times", proposedTime)
 	}
+	return -1, "", "" //todo error handle
 }
 
 func getDayIndexAndTime(allAvailableTimes *map[int][]int, amountOfDays int, duration int) (int, string, int) {
@@ -114,9 +164,18 @@ func getDayIndexAndTime(allAvailableTimes *map[int][]int, amountOfDays int, dura
 
 		if len((*allAvailableTimes)[dayIndex]) > 0 {
 			availableTimes := (*allAvailableTimes)[dayIndex]
-			slotPosition := rand.Intn(len(availableTimes) + 1)
-			if len(availableTimes) > slotPosition+duration-1 &&
-				availableTimes[slotPosition]+duration == availableTimes[slotPosition+duration] {
+			if len(availableTimes) < duration {
+				fmt.Println("loop saftey: getDayIndexAndTime")
+				break
+			} else if len(availableTimes) == duration {
+				time = strconv.Itoa(availableTimes[0]) + ":00"
+				return dayIndex, time, 0
+			}
+
+			slotPosition := rand.Intn(len(availableTimes)) // imporve this, it doesn't need ot be just random
+			fmt.Println(slotPosition)
+			if len(availableTimes) >= slotPosition+duration &&
+				availableTimes[slotPosition]+duration-1 == availableTimes[slotPosition+duration-1] {
 				time = strconv.Itoa(availableTimes[slotPosition]) + ":00"
 			}
 
@@ -128,15 +187,12 @@ func getDayIndexAndTime(allAvailableTimes *map[int][]int, amountOfDays int, dura
 }
 
 func putEventIntoWeek(event *CreateTask, date string, time string, week *Week) {
-	if week.Days[date].SortedItems == nil {
-		items := []ProposedTask{{event, time}}
-		day := Day{SortedItems: items}
-		week.Days[date] = day
-	} else {
-		items := ProposedTask{event, time}
-		newDay := Day{SortedItems: append(week.Days[date].SortedItems, items)}
-		week.Days[date] = newDay
+	day, exists := (*week).Days[date]
+	if !exists {
+		day = Day{}
 	}
+	day.SortedItems = append(day.SortedItems, ProposedTask{event, time})
+	(*week).Days[date] = day
 }
 
 func removeDuplicateInt(intSlice []int) []int {

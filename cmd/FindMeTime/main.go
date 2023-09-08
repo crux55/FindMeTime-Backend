@@ -337,6 +337,9 @@ func stripArrayChars(str string) string {
 }
 
 func resolveTags(tagIdStr string, db *sql.DB) []Tag {
+	if len(tagIdStr) == 0 {
+		return []Tag{}
+	}
 	var timeSlots []TimeSlot
 	tagIds := strings.Split(stripArrayChars(tagIdStr), ",")
 	for _, tagId := range tagIds {
