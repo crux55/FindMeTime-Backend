@@ -74,19 +74,20 @@ type Day struct {
 
 type Tag struct {
 	Id          string
-	Name        string
+	Name        string `validate:"required"`
 	Description string
-	TimeSlots   []TimeSlot
+	TimeSlots   []TimeSlot `validate:"required,min=1"`
 }
 
 type TimeSlot struct {
-	DayIndex  int
-	StartTime int
-	EndTime   int
+	DayIndex  int `validate:"required,min=0,max=6"`
+	StartTime int `validate:"required,min=0,max=23"`
+	EndTime   int `validate:"required,min=0,max=23"`
 }
 
 func openDB() (*sql.DB, error) {
-	loadConfig, _ := LoadConfig(os.Args[1])
+	fmt.Println("opening db", os.Getenv("CONFIG_PATH"))
+	loadConfig, _ := LoadConfig(os.Getenv("CONFIG_PATH"))
 	config := loadConfig.DatabaseConfig
 	connStr := "postgresql://" + config.Username + ":" + config.Password + "@" + config.Host + "/" + config.DatabaseName + "?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
@@ -169,11 +170,13 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 		}
 		timeSlotIds = append(timeSlotIds, id.String())
 	}
-	_, err = db.Query("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, $4);", uuid.New(), t.Name, t.Description, pq.Array(&timeSlotIds))
+	var tagID string
+	err = db.QueryRow("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, $4) RETURNING id;", uuid.New(), t.Name, t.Description, pq.Array(&timeSlotIds)).Scan(&tagID)
 	if err != nil {
 		fmt.Print(err)
 	}
-	fmt.Fprintf(w, "Task: %+v", t)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(Tag{Id: tagID})
 }
 
 func GetTagsHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -188,10 +191,11 @@ func GetTagsHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		var t Tag
 		err = rows.Scan(&t.Id, &t.Name, &t.Description, &t.TimeSlots)
 		if err != nil {
-			fmt.Print("Scan: %v", err)
+			fmt.Fprintln(os.Stderr, "Scan:", err)
 		}
 		tags = append(tags, t)
 	}
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tags)
 }
 
@@ -201,13 +205,13 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	db, err := openDB()
 	rows, err := db.Query("select * from Tasks")
 	if err != nil {
-		fmt.Print(err)
+		fmt.Fprintln(os.Stderr, "db error:", err)
 	}
 	for rows.Next() {
 		var t CreateTask
 		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &t.TagsOnly, &t.TagsNot)
 		if err != nil {
-			fmt.Print("Scan: %v", err)
+			fmt.Fprintln(os.Stderr, "Scan:", err)
 		}
 		tasks = append(tasks, t)
 	}
@@ -354,14 +358,14 @@ func resolveTags(tagIdStr string, db *sql.DB) []Tag {
 			err = timeSlotIds.Scan(&timeSlotId)
 			timeSlotIdList = append(timeSlotIdList, stripArrayChars(timeSlotId)) //pretty sure this isn't needed
 			if err != nil {
-				fmt.Print("Scan: %v", err)
+				fmt.Fprintln(os.Stderr, "Scan:", err)
 			}
 		}
 
 		timeSlotQuery, _ := db.Prepare("select day_index, start_time, end_time from time_slots where id = Any($1);")
 		timeslotrows, err := timeSlotQuery.Query(pq.Array(strings.Split(timeSlotIdList[0], ",")))
 		if err != nil {
-			fmt.Print("Scan: %v", err)
+			fmt.Fprintln(os.Stderr, "Scan:", err)
 		}
 		for timeslotrows.Next() {
 			var timeSlot TimeSlot
@@ -375,7 +379,7 @@ func resolveTags(tagIdStr string, db *sql.DB) []Tag {
 			timeSlots = append(timeSlots, timeSlot)
 		}
 	}
-	return []Tag{Tag{TimeSlots: timeSlots}}
+	return []Tag{{TimeSlots: timeSlots}}
 }
 
 func main() {
