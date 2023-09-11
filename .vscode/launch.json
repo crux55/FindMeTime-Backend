@@ -10,8 +10,7 @@
             "request": "launch",
             "mode": "debug",
             "program": "${fileDirname}",
-            "env": {},
-            "args": ["../../envs/local.yml"],
+            "env": {"CONFIG_PATH": "../../envs/local.yml"},
         }
     ]
 }
