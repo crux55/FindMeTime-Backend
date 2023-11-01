@@ -86,6 +86,10 @@ type TimeSlot struct {
 	EndTime   int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"EndTime"`
 }
 
+type TemplateReq struct {
+	Days []Day
+}
+
 func openDB() (*sql.DB, error) {
 	fmt.Println("opening db", os.Getenv("CONFIG_PATH"))
 	loadConfig, _ := LoadConfig(os.Getenv("CONFIG_PATH"))
@@ -225,6 +229,32 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 		tasks = append(tasks, t)
 	}
 	json.NewEncoder(w).Encode(tasks)
+}
+
+func createTemplateHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Print("createTemplateHandler")
+	var template TemplateReq
+	err := json.NewDecoder(r.Body).Decode(&template)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	v := validate.Struct(template)
+	if !v.Validate() {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Println(v.Errors.Error())
+		http.Error(w, string(v.Errors.JSON()), 400)
+	}
+	db, err := openDB()
+	var timeSlotIds []string
+	id := uuid.New()
+	_, err = db.Query("INSERT INTO templates (id, day_index, start_time, end_time) VALUES ($1, $2, $3, $4);", id, timeSlot.DayIndex, timeSlot.StartTime, timeSlot.EndTime)
+	if err != nil {
+		fmt.Print(err)
+	}
+	timeSlotIds = append(timeSlotIds, id.String())
+
+	var tagID string
 }
 
 func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
