@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"database/sql"
@@ -14,7 +16,6 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
 )
 
 type User struct {
@@ -28,6 +29,8 @@ type CreateTask struct {
 	Description string
 	Duration    int
 	CreatedOn   string
+	TagsOnly    []Tag
+	TagsNot     []Tag
 }
 
 type ProposedTask struct {
@@ -72,34 +75,26 @@ type Day struct {
 
 type Tag struct {
 	Id          string
-	Name        string
+	Name        string `validate:"required|string|min_len:3|max_len:50" message:"required:{field} is required" label:"Name"`
 	Description string
-	Mon_start   int
-	Mon_end     int
-	Tues_start  int
-	Tues_end    int
-	Wed_start   int
-	Wed_end     int
-	Thur_start  int
-	Thur_end    int
-	Fri_start   int
-	Fri_end     int
-	Sat_start   int
-	Sat_end     int
-	Sun_start   int
-	Sun_end     int
+	TimeSlots   []TimeSlot `validate:"required|isArray|min_len:1" message:"required:{field} is required" label:"TimeSlots"`
+}
+
+type TimeSlot struct {
+	StartDayIndex int `validate:"required|int|min:0|max:6" message:"required:{field} is required" label:"StartDayIndex"`
+	StartTime     int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"StartTime"`
+	EndDayIndex   int `validate:"required|int|min:0|max:6" message:"required:{field} is required" label:"endDayIndex"`
+	EndTime       int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"EndTime"`
 }
 
 func openDB() (*sql.DB, error) {
-	userName := "tasker"
-	host := "192.168.1.26"
-	pass := "s.o.a.d."
-	database := "findmetime"
-
-	connStr := "postgresql://" + userName + ":" + pass + "@" + host + "/" + database + "?sslmode=disable"
+	fmt.Println("opening db", os.Getenv("CONFIG_PATH"))
+	loadConfig, _ := LoadConfig(os.Getenv("CONFIG_PATH"))
+	config := loadConfig.DatabaseConfig
+	connStr := "postgresql://" + config.Username + ":" + config.Password + "@" + config.Host + "/" + config.DatabaseName + "?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err)
 	}
 
 	return db, err
@@ -112,10 +107,20 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	var tagOnlyIds []string
+	var tagNotIds []string
+	for _, tagOnly := range t.TagsOnly {
+		tagOnlyIds = append(tagOnlyIds, tagOnly.Id)
+	}
+
+	for _, tagNot := range t.TagsNot {
+		tagNotIds = append(tagNotIds, tagNot.Id)
+	}
+
 	db, err := openDB()
-	_, err = db.Query("INSERT INTO Tasks (task_id, title, description, duration, created_on) VALUES ($1, $2, $3, $4, $5);", uuid.New(), t.Title, t.Description, t.Duration, time.Now())
+	_, err = db.Query("INSERT INTO Tasks (id, title, description, duration, created_on, tags_only, tags_not) VALUES ($1, $2, $3, $4, $5, $6, $7);", uuid.New(), t.Title, t.Description, t.Duration, time.Now(), pq.Array(tagOnlyIds), pq.Array(tagNotIds))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err)
 	}
 	fmt.Fprintf(w, "Task: %+v", t)
 }
@@ -131,7 +136,7 @@ func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	db, err := openDB()
 	_, err = db.Query("INSERT INTO Goals (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5, $6);", uuid.New(), g.Title, g.Description, g.Duration, time.Now(), g.Frequency)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err)
 	}
 	fmt.Fprintf(w, "Task: %+v", g)
 }
@@ -149,7 +154,6 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 }
 
 func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Print("creating tag")
 	var t Tag
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
@@ -158,11 +162,45 @@ func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Para
 		return
 	}
 	db, err := openDB()
-	_, err = db.Query("INSERT INTO Tags (task_id, tag_name, description, mon_start, mon_end, tue_start, tue_end, wed_start, wed_end, thu_start, thu_end, fri_start, fri_end, sat_start, sat_end, sun_start, sun_end) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);", uuid.New(), t.Name, t.Description, t.Mon_start, t.Mon_end, t.Tues_start, t.Tues_end, t.Wed_start, t.Wed_end, t.Thur_start, t.Thur_end, t.Fri_start, t.Fri_end, t.Sat_start, t.Sat_end, t.Sun_start, t.Sun_end)
+
+	var timeSlotIDs []string
+	for _, timeSlot := range t.TimeSlots {
+		id := uuid.New()
+		_, err := db.Query("INSERT INTO time_slots (id, start_day_index, start_time, end_day_index, end_time) VALUES ($1, $2, $3, $4, $5);",
+			id, timeSlot.StartDayIndex, timeSlot.StartTime, timeSlot.EndDayIndex, timeSlot.EndTime)
+		if err != nil {
+			log.Fatal(err)
+		}
+		timeSlotIDs = append(timeSlotIDs, id.String())
+	}
+
+	_, err = db.Query("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, $4);",
+		uuid.New(), t.Name, t.Description, pq.Array(timeSlotIDs))
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Fprintf(w, "Task: %+v", t)
+
+	fmt.Fprintf(w, "Tag: %+v", t)
+}
+
+func GetTagsHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	var tags []Tag
+
+	db, err := openDB()
+	rows, err := db.Query("select id, tag_name, description from Tags")
+	if err != nil {
+		fmt.Print(err)
+	}
+	for rows.Next() {
+		var t Tag
+		err = rows.Scan(&t.Id, &t.Name, &t.Description)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Scan:", err)
+		}
+		tags = append(tags, t)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tags)
 }
 
 func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -171,37 +209,23 @@ func GetTasksHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Param
 	db, err := openDB()
 	rows, err := db.Query("select * from Tasks")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintln(os.Stderr, "db error:", err)
 	}
 	for rows.Next() {
 		var t CreateTask
-		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
+		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &t.TagsOnly, &t.TagsNot)
 		if err != nil {
-			fmt.Print("Scan: %v", err)
+			fmt.Fprintln(os.Stderr, "Scan:", err)
 		}
 		tasks = append(tasks, t)
 	}
-
-	goaldb, err := openDB()
-	rows, err = goaldb.Query("select task_id, title, description, duration, created_on from Goals")
-	if err != nil {
-		log.Fatal(err)
-	}
-	for rows.Next() {
-		var t CreateTask
-		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
-		if err != nil {
-			fmt.Print("Scan: %v", err)
-		}
-		tasks = append(tasks, t)
-	}
-
 	json.NewEncoder(w).Encode(tasks)
 }
 
 func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Print("in find time")
 	var findTimeRequest FindTimeRequest
+
 	err := json.NewDecoder(r.Body).Decode(&findTimeRequest)
 	if err != nil {
 		fmt.Print(err)
@@ -210,55 +234,93 @@ func FindTime(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 
 	var taskIdList []string
-	var goalIdList []string
 
 	for _, v := range findTimeRequest.Tasks {
 		taskIdList = append(taskIdList, v)
-	}
-
-	for _, v := range findTimeRequest.Goals {
-		goalIdList = append(goalIdList, v)
 	}
 
 	var tasks []CreateTask
 
 	db, err := openDB()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err)
 	}
-	rows, err := db.Query("select * from Tasks where task_id = Any($1)", pq.Array(taskIdList))
+	rows, err := db.Query("select * from tasks where id = Any($1)", pq.Array(taskIdList))
 	if err != nil {
-		log.Fatal(err)
+		fmt.Print(err)
 	}
 	for rows.Next() {
 		var t CreateTask
-		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn)
-		if err != nil {
-			fmt.Print("Scan: %v", err)
-		}
+		var to string
+		var tn string
+		err = rows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &to, &tn)
+		t.TagsOnly = resolveTags(to, db)
+		t.TagsNot = resolveTags(tn, db)
 		tasks = append(tasks, t)
 	}
 
-	var goals []Goal
-	goaldb, goalerr := openDB()
-	goalrows, goalerr := goaldb.Query("select * from Goals where task_id = Any($1)", pq.Array(taskIdList))
-	if goalerr != nil {
-		log.Fatal(err)
-	}
-	for goalrows.Next() {
-		var g Goal
-		var t CreateTask
-		err = goalrows.Scan(&t.TaskId, &t.Title, &t.Description, &t.Duration, &t.CreatedOn, &g.Frequency)
-		if err != nil {
-			fmt.Print("Scan: %v", err)
-		}
-		g.CreateTask = &t
-		goals = append(goals, g)
-	}
-
-	response := FindTimeWorker(tasks, goals)
+	fmt.Print("tasks", tasks)
+	response := FindTimeWorker(tasks)
 
 	json.NewEncoder(w).Encode(response)
+}
+
+func stripArrayChars(str string) string {
+	str = strings.ReplaceAll(str, "{", "")
+	str = strings.ReplaceAll(str, "}", "")
+	str = strings.ReplaceAll(str, "\"", "")
+	return str
+}
+
+func resolveTags(tagIdStr string, db *sql.DB) []Tag {
+	if len(tagIdStr) == 0 {
+		return []Tag{}
+	}
+	var timeSlots []TimeSlot
+	tagIds := strings.Split(stripArrayChars(tagIdStr), ",")
+	for _, tagId := range tagIds {
+		fmt.Println("looping tag ids", tagId)
+		fmt.Printf("getting")
+		getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
+		timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
+		fmt.Printf("Done with get")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Scan:", err)
+		}
+
+		var timeSlotIdList []string
+		for timeSlotIds.Next() {
+			var timeSlotId string
+			err = timeSlotIds.Scan(&timeSlotId)
+			timeSlotIdList = append(timeSlotIdList, stripArrayChars(timeSlotId)) //pretty sure this isn't needed
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Scan:", err)
+			}
+		}
+
+		timeSlotQuery, _ := db.Prepare("select start_day_index, start_time, end_day_index, end_time from time_slots where id = Any($1);")
+		timeslotrows, err := timeSlotQuery.Query(pq.Array(strings.Split(timeSlotIdList[0], ",")))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Scan:", err)
+		}
+		for timeslotrows.Next() {
+			var timeSlot TimeSlot
+			var start_day_index int
+			var start_time int
+			var end_day_index int
+			var end_time int
+			err2 := timeslotrows.Scan(&start_day_index, &start_time, &end_day_index, &end_time)
+			timeSlot.StartDayIndex = start_day_index
+			timeSlot.StartTime = start_time
+			timeSlot.EndDayIndex = end_day_index
+			timeSlot.EndTime = end_time
+			timeSlots = append(timeSlots, timeSlot)
+			if err2 != nil {
+				fmt.Fprintln(os.Stderr, "Scan:", err2)
+			}
+		}
+	}
+	return []Tag{{TimeSlots: timeSlots}}
 }
 
 func main() {
@@ -270,67 +332,8 @@ func main() {
 	router.POST("/api/v1/findtime", FindTime)
 	router.POST("/api/v1/users", CreateUserHandler)
 	router.POST("/api/v1/tags", CreateTagHandler)
+	router.GET("/api/v1/tags", GetTagsHandler)
 	handler := cors.Default().Handler(router)
 	fmt.Print("Started....")
 	http.ListenAndServe(":8080", handler)
 }
-
-// func enableCors(w *http.ResponseWriter) {
-// 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-// 	fmt.Print(".")
-// }
-
-/*
-\c findmetime;
-drop table tasks;
-drop table goals;
-drop table tags;
-drop table users;
-
-CREATE TABLE users (
-	id  VARCHAR (50) PRIMARY KEY,
-	username VARCHAR(20) NOT NULL
-);
-
-CREATE TABLE tasks (
-	task_id  VARCHAR (50) PRIMARY KEY,
-	title VARCHAR (20) NOT NULL,
-	description VARCHAR (20) NOT NULL,
-	duration INT NOT NULL,
-	created_on TIMESTAMP NOT NULL
-);
-
-CREATE TABLE goals (
-	task_id  VARCHAR (50) PRIMARY KEY,
-	title VARCHAR (20) NOT NULL,
-	description VARCHAR (20) NOT NULL,
-	duration INT NOT NULL,
-	created_on TIMESTAMP NOT NULL,
-	frequency INT NOT NULL
-);
-
-CREATE TABLE tags (
-	task_id  VARCHAR (50) PRIMARY KEY,
-	tag_name VARCHAR(20) NOT NULL,
-	description VARCHAR(20) NOT NULL,
-	mon_start TIMESTAMP ,
-	mon_end TIMESTAMP ,
-		tue_start TIMESTAMP ,
-	tue_end TIMESTAMP ,
-		wed_start TIMESTAMP ,
-	wed_end TIMESTAMP ,
-		thu_start TIMESTAMP ,
-	thu_end TIMESTAMP ,
-		fri_start TIMESTAMP ,
-	fri_end TIMESTAMP ,
-		sat_start TIMESTAMP ,
-	sat_end TIMESTAMP ,
-		sun_start TIMESTAMP ,
-	sun_end TIMESTAMP
-
-);
-GRANT ALL ON TABLE users TO tasker;
-GRANT ALL ON TABLE tasks TO tasker;
-GRANT ALL ON TABLE goals TO tasker;
-GRANT ALL ON TABLE tags TO tasker;
-*/
