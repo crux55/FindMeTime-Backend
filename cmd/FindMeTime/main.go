@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -10,10 +11,10 @@ import (
 
 	"database/sql"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/rs/cors" // only needed while CORS is in play
 
-	"github.com/gookit/validate"
 	"github.com/julienschmidt/httprouter"
 	"github.com/lib/pq"
 )
@@ -75,15 +76,16 @@ type Day struct {
 
 type Tag struct {
 	Id          string
-	Name        string `validate:"required|string|min_len:3|max_len:50" message:"required:{field} is required" label:"Name"`
+	Name        string `validate:"required,min=3,max=50" message:"required:{field} is required" label:"Name"`
 	Description string
-	TimeSlots   []TimeSlot `validate:"required|isArray|min_len:1" message:"required:{field} is required" label:"TimeSlots"`
+	TimeSlots   []TimeSlot `validate:"required,dive" message:"required:{field} is required" label:"TimeSlots"`
 }
 
 type TimeSlot struct {
-	DayIndex  int `validate:"required|int|min:0|max:6" message:"required:{field} is required" label:"DayIndex"`
-	StartTime int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"StartTime"`
-	EndTime   int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"EndTime"`
+	StartDayIndex int `validate:"required_with_zero,min=0,max=6"`
+	StartTime     int `validate:"required_with_zero,min=0,max=23"`
+	EndDayIndex   int `validate:"required_with_zero,min=0,max=6"`
+	EndTime       int `validate:"required_with_zero,min=0,max=23"`
 }
 
 func openDB() (*sql.DB, error) {
@@ -148,57 +150,80 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	db, err := openDB()
 	_, err = db.Query("INSERT INTO USERS (id, username) VALUES ($1, $2)", user.ID, user.UserName)
 	if err != nil {
-		fmt.Print(err)
+		log.Fatal(err)
 	}
 }
 
 func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Print("creating tag:")
 	var t Tag
+
 	err := json.NewDecoder(r.Body).Decode(&t)
-	v := validate.Struct(t)
-
-	if !v.Validate() {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Println(v.Errors.Error())
-		http.Error(w, string(v.Errors.JSON()), 400)
-	}
-
 	if err != nil {
 		fmt.Print(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fmt.Print(t)
+	validate := validator.New()
+	_ = validate.RegisterValidation("required_with_zero", func(fl validator.FieldLevel) bool {
+		// Get the field's value
+		value := fl.Field().Int()
+
+		// The field is valid if the value is greater than or equal to 0
+		return value >= 0
+	})
+	err = validate.Struct(t)
+	if err != nil {
+		fmt.Println("Validation error:", err)
+		// Create a map to hold the error message
+		errorMessage := map[string]string{"error": err.Error()}
+
+		// Set the response header to application/json
+		w.Header().Set("Content-Type", "application/json")
+
+		// Write the status code to the response
+		w.WriteHeader(http.StatusBadRequest)
+
+		// Encode the error message into a JSON response
+		if err := json.NewEncoder(w).Encode(errorMessage); err != nil {
+			// Handle error
+			fmt.Println("JSON encoding error:", err)
+		}
+		return
+	}
 	db, err := openDB()
-	var timeSlotIds []string
+
+	var timeSlotIDs []string
 	for _, timeSlot := range t.TimeSlots {
 		id := uuid.New()
-		_, err = db.Query("INSERT INTO time_slots (id, day_index, start_time, end_time) VALUES ($1, $2, $3, $4);", id, timeSlot.DayIndex, timeSlot.StartTime, timeSlot.EndTime)
+		_, err := db.Query("INSERT INTO time_slots (id, start_day_index, start_time, end_day_index, end_time) VALUES ($1, $2, $3, $4, $5);",
+			id, timeSlot.StartDayIndex, timeSlot.StartTime, timeSlot.EndDayIndex, timeSlot.EndTime)
 		if err != nil {
-			fmt.Print(err)
+			log.Fatal(err)
 		}
-		timeSlotIds = append(timeSlotIds, id.String())
+		timeSlotIDs = append(timeSlotIDs, id.String())
 	}
-	var tagID string
-	err = db.QueryRow("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, $4) RETURNING id;", uuid.New(), t.Name, t.Description, pq.Array(&timeSlotIds)).Scan(&tagID)
+
+	_, err = db.Query("INSERT INTO tags (id, tag_name, description, time_slots) VALUES ($1, $2, $3, $4);",
+		uuid.New(), t.Name, t.Description, pq.Array(timeSlotIDs))
 	if err != nil {
-		fmt.Print(err)
+		log.Fatal(err)
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Tag{Id: tagID})
+
+	fmt.Fprintf(w, "Tag: %+v", t)
 }
 
 func GetTagsHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var tags []Tag
 
 	db, err := openDB()
-	rows, err := db.Query("select * from Tags")
+	rows, err := db.Query("select id, tag_name, description from Tags")
 	if err != nil {
 		fmt.Print(err)
 	}
 	for rows.Next() {
 		var t Tag
-		err = rows.Scan(&t.Id, &t.Name, &t.Description, &t.TimeSlots)
+		err = rows.Scan(&t.Id, &t.Name, &t.Description)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Scan:", err)
 		}
@@ -285,35 +310,46 @@ func resolveTags(tagIdStr string, db *sql.DB) []Tag {
 	tagIds := strings.Split(stripArrayChars(tagIdStr), ",")
 	for _, tagId := range tagIds {
 		fmt.Println("looping tag ids", tagId)
-
+		fmt.Printf("getting")
 		getTimeSlotIdQuers, _ := db.Prepare("select time_slots from tags where id = $1;")
 		timeSlotIds, err := getTimeSlotIdQuers.Query(tagId)
+		fmt.Printf("Done with get")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Scan:", err)
+		}
 
 		var timeSlotIdList []string
 		for timeSlotIds.Next() {
 			var timeSlotId string
 			err = timeSlotIds.Scan(&timeSlotId)
+			fmt.Print("incomming")
+			fmt.Print(timeSlotId)
 			timeSlotIdList = append(timeSlotIdList, stripArrayChars(timeSlotId)) //pretty sure this isn't needed
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Scan:", err)
 			}
 		}
 
-		timeSlotQuery, _ := db.Prepare("select day_index, start_time, end_time from time_slots where id = Any($1);")
+		timeSlotQuery, _ := db.Prepare("select start_day_index, start_time, end_day_index, end_time from time_slots where id = Any($1);")
 		timeslotrows, err := timeSlotQuery.Query(pq.Array(strings.Split(timeSlotIdList[0], ",")))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Scan:", err)
 		}
 		for timeslotrows.Next() {
 			var timeSlot TimeSlot
-			var day_index int
+			var start_day_index int
 			var start_time int
+			var end_day_index int
 			var end_time int
-			err = timeslotrows.Scan(&day_index, &start_time, &end_time)
-			timeSlot.DayIndex = day_index
+			err2 := timeslotrows.Scan(&start_day_index, &start_time, &end_day_index, &end_time)
+			timeSlot.StartDayIndex = start_day_index
 			timeSlot.StartTime = start_time
+			timeSlot.EndDayIndex = end_day_index
 			timeSlot.EndTime = end_time
 			timeSlots = append(timeSlots, timeSlot)
+			if err2 != nil {
+				fmt.Fprintln(os.Stderr, "Scan:", err2)
+			}
 		}
 	}
 	return []Tag{{TimeSlots: timeSlots}}

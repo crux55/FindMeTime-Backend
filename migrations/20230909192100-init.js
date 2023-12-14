@@ -13,21 +13,21 @@ exports.setup = function (options, seedLink) {
 exports.up = function (db) {
   return db.createTable('users', {
     columns: {
-      id: { type: 'VARCHAR (50)', primaryKey: true },
-      username: { type: 'VARCHAR (20)', notNull: true },
+      id: { type: 'VARCHAR(50)', primaryKey: true },
+      username: { type: 'VARCHAR(20)', notNull: true },
     },
     ifNotExists: true
   })
   .then(() => {
     return db.createTable('tasks', {
       columns: {
-        id: { type: 'VARCHAR (50)', primaryKey: true },
-        title: { type: 'VARCHAR (50)', notNull: true },
-        description: { type: 'VARCHAR (50)', notNull: true },
+        id: { type: 'VARCHAR(50)', primaryKey: true },
+        title: { type: 'VARCHAR(50)', notNull: true },
+        description: { type: 'VARCHAR(50)', notNull: true },
         duration: { type: 'int', notNull: true },
         created_on: { type: 'timestamp', notNull: true },
-        tags_only: { type: 'VARCHAR (5000)' },
-        tags_not: { type: 'VARCHAR (5000)' },
+        tags_only: { type: 'VARCHAR(5000)' },
+        tags_not: { type: 'VARCHAR(5000)', arrayType: 'string' },
       },
       ifNotExists: true
     });
@@ -35,9 +35,9 @@ exports.up = function (db) {
   .then(() => {
     return db.createTable('goals', {
       columns: {
-        task_id: { type: 'VARCHAR (50)', primaryKey: true },
-        title: { type: 'VARCHAR (20)', notNull: true },
-        description: { type: 'VARCHAR (20)', notNull: true },
+        task_id: { type: 'VARCHAR(50)', primaryKey: true },
+        title: { type: 'VARCHAR(20)', notNull: true },
+        description: { type: 'VARCHAR(20)', notNull: true },
         duration: { type: 'int', notNull: true },
         created_on: { type: 'timestamp', notNull: true },
         frequency: { type: 'int', notNull: true },
@@ -48,10 +48,10 @@ exports.up = function (db) {
   .then(() => {
     return db.createTable('tags', {
       columns: {
-        id: { type: 'VARCHAR (50)', primaryKey: true },
-        tag_name: { type: 'VARCHAR (20)', notNull: true },
-        description: { type: 'VARCHAR (20)', notNull: true },
-        time_slots: { type: 'VARCHAR (5000)' },
+        id: { type: 'VARCHAR(50)', primaryKey: true },
+        tag_name: { type: 'VARCHAR(20)', notNull: true },
+        description: { type: 'VARCHAR(20)', notNull: true },
+        time_slots: { type: 'VARCHAR(5000)' },
       },
       ifNotExists: true
     });
@@ -59,9 +59,10 @@ exports.up = function (db) {
   .then(() => {
     return db.createTable('time_slots', {
       columns: {
-        id: { type: 'VARCHAR (50)', primaryKey: true },
-        day_index: { type: 'int' },
+        id: { type: 'VARCHAR(50)', primaryKey: true },
+        start_day_index: { type: 'int' },
         start_time: { type: 'int' },
+        end_day_index: { type: 'int' },
         end_time: { type: 'int' },
       },
       ifNotExists: true

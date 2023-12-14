@@ -46,17 +46,17 @@ func getAvailableTimes(task CreateTask, returnerWeek Week) *map[int][]int {
 			for n := timeSlot.StartTime; n < timeSlot.EndTime; n++ {
 				tmpTimes = append(tmpTimes, n)
 			}
-			if allAvailableTimes[timeSlot.DayIndex] == nil {
-				allAvailableTimes[timeSlot.DayIndex] = make([]int, 0, len(tmpTimes))
+			if allAvailableTimes[timeSlot.StartDayIndex] == nil {
+				allAvailableTimes[timeSlot.StartDayIndex] = make([]int, 0, len(tmpTimes))
 			}
-			allAvailableTimes[timeSlot.DayIndex] = removeDuplicateInt(append(allAvailableTimes[timeSlot.DayIndex], tmpTimes...))
+			allAvailableTimes[timeSlot.StartDayIndex] = removeDuplicateInt(append(allAvailableTimes[timeSlot.StartDayIndex], tmpTimes...))
 
 		}
 	}
 
 	for _, notag := range task.TagsNot {
 		for _, timeSlot := range notag.TimeSlots {
-			times, err := allAvailableTimes[timeSlot.DayIndex]
+			times, err := allAvailableTimes[timeSlot.StartDayIndex]
 			if !err {
 				break
 			}
@@ -66,7 +66,7 @@ func getAvailableTimes(task CreateTask, returnerWeek Week) *map[int][]int {
 					filteredTimes = append(filteredTimes, t)
 				}
 			}
-			allAvailableTimes[timeSlot.DayIndex] = filteredTimes
+			allAvailableTimes[timeSlot.StartDayIndex] = filteredTimes
 		}
 	}
 

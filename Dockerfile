@@ -5,7 +5,8 @@ RUN CGO_ENABLED=0
 RUN apk add --no-cache libc6-compat 
 RUN go build -o fmtbe ./cmd/FindMeTime/
 EXPOSE 8080
-ENTRYPOINT ["./fmtbe", "/app/envs/docker.yml"]
+ENV CONFIG_PATH /app/envs/docker.yml
+ENTRYPOINT ["./fmtbe"]
 
 
 
