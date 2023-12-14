@@ -11,6 +11,7 @@ import (
 
 	"database/sql"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/rs/cors" // only needed while CORS is in play
 
@@ -75,16 +76,16 @@ type Day struct {
 
 type Tag struct {
 	Id          string
-	Name        string `validate:"required|string|min_len:3|max_len:50" message:"required:{field} is required" label:"Name"`
+	Name        string `validate:"required,min=3,max=50" message:"required:{field} is required" label:"Name"`
 	Description string
-	TimeSlots   []TimeSlot `validate:"required|isArray|min_len:1" message:"required:{field} is required" label:"TimeSlots"`
+	TimeSlots   []TimeSlot `validate:"required,dive" message:"required:{field} is required" label:"TimeSlots"`
 }
 
 type TimeSlot struct {
-	StartDayIndex int `validate:"required|int|min:0|max:6" message:"required:{field} is required" label:"StartDayIndex"`
-	StartTime     int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"StartTime"`
-	EndDayIndex   int `validate:"required|int|min:0|max:6" message:"required:{field} is required" label:"endDayIndex"`
-	EndTime       int `validate:"required|int|min:0|max:23" message:"required:{field} is required" label:"EndTime"`
+	StartDayIndex int `validate:"required_with_zero,min=0,max=6"`
+	StartTime     int `validate:"required_with_zero,min=0,max=23"`
+	EndDayIndex   int `validate:"required_with_zero,min=0,max=6"`
+	EndTime       int `validate:"required_with_zero,min=0,max=23"`
 }
 
 func openDB() (*sql.DB, error) {
@@ -155,10 +156,39 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 
 func CreateTagHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var t Tag
+
 	err := json.NewDecoder(r.Body).Decode(&t)
 	if err != nil {
 		fmt.Print(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fmt.Print(t)
+	validate := validator.New()
+	_ = validate.RegisterValidation("required_with_zero", func(fl validator.FieldLevel) bool {
+		// Get the field's value
+		value := fl.Field().Int()
+
+		// The field is valid if the value is greater than or equal to 0
+		return value >= 0
+	})
+	err = validate.Struct(t)
+	if err != nil {
+		fmt.Println("Validation error:", err)
+		// Create a map to hold the error message
+		errorMessage := map[string]string{"error": err.Error()}
+
+		// Set the response header to application/json
+		w.Header().Set("Content-Type", "application/json")
+
+		// Write the status code to the response
+		w.WriteHeader(http.StatusBadRequest)
+
+		// Encode the error message into a JSON response
+		if err := json.NewEncoder(w).Encode(errorMessage); err != nil {
+			// Handle error
+			fmt.Println("JSON encoding error:", err)
+		}
 		return
 	}
 	db, err := openDB()
@@ -292,6 +322,8 @@ func resolveTags(tagIdStr string, db *sql.DB) []Tag {
 		for timeSlotIds.Next() {
 			var timeSlotId string
 			err = timeSlotIds.Scan(&timeSlotId)
+			fmt.Print("incomming")
+			fmt.Print(timeSlotId)
 			timeSlotIdList = append(timeSlotIdList, stripArrayChars(timeSlotId)) //pretty sure this isn't needed
 			if err != nil {
 				fmt.Fprintln(os.Stderr, "Scan:", err)
