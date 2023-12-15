@@ -33,19 +33,6 @@ exports.up = function (db) {
     });
   })
   .then(() => {
-    return db.createTable('goals', {
-      columns: {
-        task_id: { type: 'VARCHAR(50)', primaryKey: true },
-        title: { type: 'VARCHAR(20)', notNull: true },
-        description: { type: 'VARCHAR(20)', notNull: true },
-        duration: { type: 'int', notNull: true },
-        created_on: { type: 'timestamp', notNull: true },
-        frequency: { type: 'int', notNull: true },
-      },
-      ifNotExists: true
-    });
-  })
-  .then(() => {
     return db.createTable('tags', {
       columns: {
         id: { type: 'VARCHAR(50)', primaryKey: true },
@@ -79,9 +66,6 @@ exports.up = function (db) {
     return db.runSql('GRANT ALL ON TABLE tasks TO tasker');
   })
   .then(() => {
-    return db.runSql('GRANT ALL ON TABLE goals TO tasker');
-  })
-  .then(() => {
     return db.runSql('GRANT ALL ON TABLE tags TO tasker');
   })
   .then(() => {
@@ -92,7 +76,6 @@ exports.up = function (db) {
 exports.down = function (db) {
   return db.dropTable('time_slots')
     .then(() => db.dropTable('tags'))
-    .then(() => db.dropTable('goals'))
     .then(() => db.dropTable('tasks'))
     .then(() => db.dropTable('users'));
 };

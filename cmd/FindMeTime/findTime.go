@@ -12,7 +12,6 @@ import (
 func FindTimeWorker(tasks []CreateTask) *FindTimeResponse {
 	amountOfDays := 1
 	var returnerTasks []ProposedTask
-	var returnerGoals []ProposedGoal
 	returnerWeek := Week{Days: make(map[string]Day)}
 	startDate := nextWeeklyEvent(time.Monday, 0)
 
@@ -35,7 +34,7 @@ func FindTimeWorker(tasks []CreateTask) *FindTimeResponse {
 		})
 	}
 
-	return &FindTimeResponse{ProposedTasks: returnerTasks, ProposedGoals: returnerGoals, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
+	return &FindTimeResponse{ProposedTasks: returnerTasks, Week: returnerWeek, StartDate: startDate, EndDate: nextWeeklyEvent(time.Monday, 6)}
 }
 
 func getAvailableTimes(task CreateTask, returnerWeek Week) *map[int][]int {
