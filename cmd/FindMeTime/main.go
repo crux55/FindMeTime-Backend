@@ -39,30 +39,18 @@ type ProposedTask struct {
 	StartTime string
 }
 
-type Goal struct {
-	*CreateTask
-	Frequency int
-}
-
-type ProposedGoal struct {
-	*Goal
-	StartTime int
-}
-
 type FindTimeRequestTask struct {
 	TaskId []string
 }
 
 type FindTimeRequest struct {
 	Tasks []string
-	Goals []string
 }
 
 type FindTimeResponse struct {
 	StartDate     string
 	EndDate       string
 	ProposedTasks []ProposedTask
-	ProposedGoals []ProposedGoal
 	Week          Week
 }
 
@@ -124,22 +112,6 @@ func CreateTaskHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 		fmt.Print(err)
 	}
 	fmt.Fprintf(w, "Task: %+v", t)
-}
-
-func CreateGoalHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	var g Goal
-	err := json.NewDecoder(r.Body).Decode(&g)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	db, err := openDB()
-	_, err = db.Query("INSERT INTO Goals (task_id, title, description, duration, created_on, frequency) VALUES ($1, $2, $3, $4, $5, $6);", uuid.New(), g.Title, g.Description, g.Duration, time.Now(), g.Frequency)
-	if err != nil {
-		fmt.Print(err)
-	}
-	fmt.Fprintf(w, "Task: %+v", g)
 }
 
 func CreateUserHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -359,7 +331,6 @@ func main() {
 	router := httprouter.New()
 
 	router.POST("/api/v1/task/create", CreateTaskHandler)
-	router.POST("/api/v1/goal/create", CreateGoalHandler)
 	router.GET("/api/v1/task/all", GetTasksHandler)
 	router.POST("/api/v1/findtime", FindTime)
 	router.POST("/api/v1/users", CreateUserHandler)
